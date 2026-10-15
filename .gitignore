@@ -1,0 +1,80 @@
+# Miscellaneous / OS
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE and Editor files
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# Flutter / Dart build and cache
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+
+# Symbol processing / Flutter generated
+android/app/src/main/assets/flutter_assets/
+ios/Flutter/App.framework/
+ios/Flutter/Flutter.framework/
+ios/Flutter/Flutter.podspec
+ios/Flutter/Generated.xcconfig
+ios/Flutter/app.flx
+ios/Flutter/app.zip
+ios/Flutter/flutter_assets/
+ios/Flutter/flutter_export_environment.sh
+ios/ServiceDefinitions.json
+ios/Runner/GeneratedPluginRegistrant.*
+macos/Flutter/ephemeral/
+
+# Android build and keystore
+android/.gradle/
+android/captures/
+android/local.properties
+android/.cxx/
+android/app/debug/
+android/app/profile/
+android/app/release/
+key.properties
+**/*.keystore
+**/*.jks
+
+# iOS / macOS Xcode and CocoaPods
+**/Pods/
+**/.symlinks/
+**/DerivedData/
+**/xcuserdata/
+**/Profile/
+
+# Node.js / Backend
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+*.zip
+*.log
+backend/sp_output.txt
+
+# Sensitive files / Environment variables
+.env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+backend/config.js
+!backend/config.example.js
