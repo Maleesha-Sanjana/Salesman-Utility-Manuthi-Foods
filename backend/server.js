@@ -6907,7 +6907,7 @@ app.delete('/api/location/user/:userCode', async (req, res) => {
 
 // ==================== DEVICE TRACKING ====================
 
-const MAX_ALLOWED_DEVICES = 10;
+const MAX_ALLOWED_DEVICES = parseInt(process.env.MAX_ALLOWED_DEVICES || '2', 10);
 
 async function ensureUserDeviceTable(request) {
   await request.query(`
