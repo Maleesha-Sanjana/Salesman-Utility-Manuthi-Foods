@@ -8,6 +8,8 @@ class Customer {
   final double creditLimit;
   final double currentOutstanding;
 
+  final String? location;
+
   const Customer({
     required this.code,
     required this.name,
@@ -17,6 +19,7 @@ class Customer {
     this.priceTier,
     this.creditLimit = 0,
     this.currentOutstanding = 0,
+    this.location,
   });
 
   factory Customer.fromJson(Map<String, dynamic> json) {
@@ -29,6 +32,7 @@ class Customer {
       priceTier: json['priceTier']?.toString(),
       creditLimit: double.tryParse(json['creditLimit']?.toString() ?? '0') ?? 0,
       currentOutstanding: double.tryParse(json['currentOutstanding']?.toString() ?? '0') ?? 0,
+      location: json['location']?.toString() ?? json['Location']?.toString(),
     );
   }
 
@@ -41,5 +45,6 @@ class Customer {
     'priceTier': priceTier,
     'creditLimit': creditLimit,
     'currentOutstanding': currentOutstanding,
+    'location': location,
   };
 }

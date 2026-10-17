@@ -22,6 +22,7 @@ class CustomerSelectDialog {
                 'code': c['code']?.toString() ?? '',
                 'name': c['name']?.toString() ?? '',
                 'phone': c['phone']?.toString() ?? '',
+                'location': c['location']?.toString() ?? c['Location']?.toString() ?? '',
               })
           .toList();
     } catch (e) {
@@ -93,7 +94,10 @@ class CustomerSelectDialog {
                               title: Text(c['name']!),
                               subtitle: Text('${c['code']} • ${c['phone']}'),
                               onTap: () {
-                                cart.setCustomerInfo(name: c['name']);
+                                cart.setCustomerInfo(
+                                  name: c['name'],
+                                  location: c['location'],
+                                );
                                 Navigator.of(context).pop();
                               },
                             );
