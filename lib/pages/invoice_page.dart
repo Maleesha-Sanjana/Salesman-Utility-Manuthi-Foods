@@ -843,6 +843,10 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
               '0';
           final balance = customer['balance']?.toString() ?? '0';
           final creditLimit = customer['creditLimit']?.toString() ?? '0';
+          final location =
+              customer['location']?.toString() ??
+              customer['Location']?.toString() ??
+              '';
 
           return <String, String>{
             'code': code,
@@ -853,6 +857,7 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
             'creditPeriod': creditPeriod,
             'balance': balance,
             'creditLimit': creditLimit,
+            'location': location,
           };
         }).toList();
       }
@@ -6722,12 +6727,15 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                               _selectedCustomer = null;
                               _clearRecalledQuotation(clearRows: true);
                               _clearRecalledSalesOrder();
-                              cart.setCustomerInfo(name: null);
+                              cart.setCustomerInfo(name: null, location: null);
                             } else {
                               _selectedCustomer = selection;
                               _clearRecalledQuotation(clearRows: true);
                               _clearRecalledSalesOrder();
-                              cart.setCustomerInfo(name: selection['name']);
+                              cart.setCustomerInfo(
+                                name: selection['name'],
+                                location: selection['location'],
+                              );
                             }
                           });
                           // Check for saved data after customer selection

@@ -1645,6 +1645,7 @@ app.get('/api/customers/list', async (req, res) => {
           ISNULL(CreatedSalesman, '') as createdSalesman,
           ISNULL(ContactPerson, '') as contactPerson,
           ISNULL(PriceLevel, '') as priceLevel,
+          ISNULL(Location, '') as location,
           ISNULL(Balance, 0) as balance,
           ISNULL(CreditLimit, 0) as creditLimit,
           ISNULL(CreditLimitRestrict, 0) as creditLimitRestrict,

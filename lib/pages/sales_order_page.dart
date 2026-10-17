@@ -867,6 +867,10 @@ class _SalesOrderPageState extends State<SalesOrderPage>
               '0';
           final balance = customer['balance']?.toString() ?? '0';
           final creditLimit = customer['creditLimit']?.toString() ?? '0';
+          final location =
+              customer['location']?.toString() ??
+              customer['Location']?.toString() ??
+              '';
 
           return <String, String>{
             'code': code,
@@ -877,6 +881,7 @@ class _SalesOrderPageState extends State<SalesOrderPage>
             'creditPeriod': creditPeriod,
             'balance': balance,
             'creditLimit': creditLimit,
+            'location': location,
           };
         }).toList();
       }
@@ -5686,13 +5691,16 @@ class _SalesOrderPageState extends State<SalesOrderPage>
                               _selectedCustomer = null;
                               _clearRecalledQuotation(clearRows: true);
                               _selectedSalesOrder = null;
-                              cart.setCustomerInfo(name: null);
+                              cart.setCustomerInfo(name: null, location: null);
                             } else {
                               _selectedCustomer = selection;
                               // Clear previous selections when customer changes
                               _clearRecalledQuotation(clearRows: true);
                               _selectedSalesOrder = null;
-                              cart.setCustomerInfo(name: selection['name']);
+                              cart.setCustomerInfo(
+                                name: selection['name'],
+                                location: selection['location'],
+                              );
                             }
                           });
                           // Check for saved data after customer selection

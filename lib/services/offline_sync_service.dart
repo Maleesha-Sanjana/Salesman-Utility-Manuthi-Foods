@@ -265,6 +265,7 @@ class OfflineSyncService {
                 '',
             'latitude': payload['latitude'],
             'longitude': payload['longitude'],
+            'location': payload['location']?.toString() ?? '',
             'isOffline': true,
           };
         })
