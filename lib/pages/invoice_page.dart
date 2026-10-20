@@ -6805,113 +6805,14 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                 ),
               ),
             const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: () async {
-                final selected = await showModalBottomSheet<String>(
-                  context: context,
-                  shape: const RoundedRectangleBorder(
-                    borderRadius: BorderRadius.vertical(
-                      top: Radius.circular(16),
-                    ),
-                  ),
-                  builder: (context) {
-                    return SafeArea(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          ListTile(
-                            leading: const Icon(Icons.storefront_rounded),
-                            title: const Text('Retail'),
-                            onTap: () => Navigator.of(context).pop('Retail'),
-                          ),
-                          ListTile(
-                            leading: const Icon(Icons.local_mall_rounded),
-                            title: const Text('WholeSale'),
-                            onTap: () => Navigator.of(context).pop('WholeSale'),
-                          ),
-                          const SizedBox(height: 8),
-                        ],
-                      ),
-                    );
-                  },
-                );
-                if (selected != null && mounted) {
-                  setState(() {
-                    _salesType = selected;
-                    // Recalculate prices for all existing rows based on new sales type
-                    for (var row in _rows) {
-                      if (row.containsKey('unitPrice') &&
-                          row.containsKey('wholeSalePrice')) {
-                        row['price'] = _getPriceFromRow(row);
-                      }
-                    }
-                  });
-                  _syncUiRowsToTempTransactions();
-                  _persistActiveDraft(immediate: true);
-                }
-              },
-              icon: const Icon(Icons.sell_rounded),
-              label: Text('Sales Type: $_salesType'),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                foregroundColor: _accentColor,
-                side: BorderSide(color: _accentColor, width: 1.5),
-              ),
-            ),
-            const SizedBox(height: 12),
             Row(
               children: [
                 Expanded(
                   child: ElevatedButton.icon(
                     onPressed:
-                        _selectedCustomer == null ||
-                            _isRecallingQuotation ||
-                            _recalledSalesOrderNo != null
-                        ? null
-                        : _recallQuotationForInvoice,
-                    icon: _isRecallingQuotation
-                        ? SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Theme.of(context).colorScheme.onPrimary,
-                            ),
-                          )
-                        : const Icon(Icons.description_rounded),
-                    label: Text(
-                      (_recalledQuotationNo?.isNotEmpty ?? false)
-                          ? _recalledQuotationNo!
-                          : 'Quotations',
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 16,
-                        horizontal: 8,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      backgroundColor: _accentColor,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed:
-                        _selectedCustomer == null ||
-                            _isRecallingSalesOrder ||
-                            _recalledQuotationNo != null
-                        ? null
-                        : _recallSalesOrderForInvoice,
+                        _selectedCustomer == null || _isRecallingSalesOrder
+                            ? null
+                            : _recallSalesOrderForInvoice,
                     icon: _isRecallingSalesOrder
                         ? SizedBox(
                             width: 18,
@@ -6942,40 +6843,74 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                     ),
                   ),
                 ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () async {
+                      final selected = await showModalBottomSheet<String>(
+                        context: context,
+                        shape: const RoundedRectangleBorder(
+                          borderRadius: BorderRadius.vertical(
+                            top: Radius.circular(16),
+                          ),
+                        ),
+                        builder: (context) {
+                          return SafeArea(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                ListTile(
+                                  leading: const Icon(Icons.storefront_rounded),
+                                  title: const Text('Retail'),
+                                  onTap: () => Navigator.of(context).pop('Retail'),
+                                ),
+                                ListTile(
+                                  leading: const Icon(Icons.local_mall_rounded),
+                                  title: const Text('WholeSale'),
+                                  onTap: () => Navigator.of(context).pop('WholeSale'),
+                                ),
+                                const SizedBox(height: 8),
+                              ],
+                            ),
+                          );
+                        },
+                      );
+                      if (selected != null && mounted) {
+                        setState(() {
+                          _salesType = selected;
+                          // Recalculate prices for all existing rows based on new sales type
+                          for (var row in _rows) {
+                            if (row.containsKey('unitPrice') &&
+                                row.containsKey('wholeSalePrice')) {
+                              row['price'] = _getPriceFromRow(row);
+                            }
+                          }
+                        });
+                        _syncUiRowsToTempTransactions();
+                        _persistActiveDraft(immediate: true);
+                      }
+                    },
+                    icon: const Icon(Icons.sell_rounded),
+                    label: Text(
+                      'Sales Type: $_salesType',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 16,
+                        horizontal: 8,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      foregroundColor: _accentColor,
+                      side: BorderSide(color: _accentColor, width: 1.5),
+                    ),
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _manualController,
-                    decoration: const InputDecoration(
-                      hintText: 'Manual #',
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextField(
-                    controller: _remarksController,
-                    readOnly: true,
-                    onTap: _openRemarksDialog,
-                    decoration: const InputDecoration(
-                      hintText: 'Remarks',
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                      suffixIcon: Icon(Icons.open_in_full_rounded),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(children: []),
-            const SizedBox(height: 8),
             Expanded(
               child: Card(
                 shape: RoundedRectangleBorder(
