@@ -6478,8 +6478,7 @@ class _CrnPageState extends State<CrnPage> with WidgetsBindingObserver {
                     for (var row in _rows) {
                       if (row.containsKey('unitPrice') &&
                           row.containsKey('wholeSalePrice')) {
-                        // Price will be recalculated when _getPriceFromRow is called
-                        // No need to update row['price'] here as we use _getPriceFromRow
+                        row['price'] = _getPriceFromRow(row);
                       }
                     }
                   });

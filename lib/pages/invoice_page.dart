@@ -6806,13 +6806,49 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
               ),
             const SizedBox(height: 12),
             OutlinedButton.icon(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Sales Type is locked to Retail.'),
-                    behavior: SnackBarBehavior.floating,
+              onPressed: () async {
+                final selected = await showModalBottomSheet<String>(
+                  context: context,
+                  shape: const RoundedRectangleBorder(
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(16),
+                    ),
                   ),
+                  builder: (context) {
+                    return SafeArea(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          ListTile(
+                            leading: const Icon(Icons.storefront_rounded),
+                            title: const Text('Retail'),
+                            onTap: () => Navigator.of(context).pop('Retail'),
+                          ),
+                          ListTile(
+                            leading: const Icon(Icons.local_mall_rounded),
+                            title: const Text('WholeSale'),
+                            onTap: () => Navigator.of(context).pop('WholeSale'),
+                          ),
+                          const SizedBox(height: 8),
+                        ],
+                      ),
+                    );
+                  },
                 );
+                if (selected != null && mounted) {
+                  setState(() {
+                    _salesType = selected;
+                    // Recalculate prices for all existing rows based on new sales type
+                    for (var row in _rows) {
+                      if (row.containsKey('unitPrice') &&
+                          row.containsKey('wholeSalePrice')) {
+                        row['price'] = _getPriceFromRow(row);
+                      }
+                    }
+                  });
+                  _syncUiRowsToTempTransactions();
+                  _persistActiveDraft(immediate: true);
+                }
               },
               icon: const Icon(Icons.sell_rounded),
               label: Text('Sales Type: $_salesType'),
