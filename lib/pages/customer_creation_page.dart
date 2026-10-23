@@ -140,15 +140,6 @@ class _CustomerCreationPageState extends State<CustomerCreationPage> {
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
 
-    if (_nic.text.trim().isEmpty && _mobile.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Enter NIC or mobile number before saving customer'),
-        ),
-      );
-      return;
-    }
-
     final auth = context.read<AuthProvider>();
     final customerCode = _code.text.trim();
     final isUpdatingCustomer = customerCode.isNotEmpty;
@@ -803,11 +794,13 @@ class _CustomerCreationPageState extends State<CustomerCreationPage> {
                 TextFormField(
                   controller: _address,
                   decoration: const InputDecoration(
-                    labelText: 'Address #1:',
+                    labelText: 'Address #1 *:',
                     prefixIcon: Icon(Icons.home_rounded),
                   ),
                   maxLines: 2,
                   maxLength: 70,
+                  validator: (v) =>
+                      (v == null || v.trim().isEmpty) ? 'Address is required' : null,
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
@@ -833,7 +826,6 @@ class _CustomerCreationPageState extends State<CustomerCreationPage> {
                   controller: _mobile,
                   decoration: const InputDecoration(
                     labelText: 'Mobile:',
-                    hintText: 'Required if NIC is empty',
                     prefixIcon: Icon(Icons.phone_rounded),
                   ),
                   keyboardType: TextInputType.phone,
@@ -855,7 +847,7 @@ class _CustomerCreationPageState extends State<CustomerCreationPage> {
                   controller: _nic,
                   decoration: const InputDecoration(
                     labelText: 'NIC:',
-                    hintText: 'Required if mobile is empty',
+                    hintText: 'Optional',
                     prefixIcon: Icon(Icons.badge_outlined),
                   ),
                   maxLength: 15,
