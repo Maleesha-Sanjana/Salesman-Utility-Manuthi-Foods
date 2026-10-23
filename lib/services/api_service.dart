@@ -704,8 +704,42 @@ class ApiService {
     }
   }
 
-  static Future<List<Map<String, dynamic>>> getLocations() async {
+  static const String _cachedLocationsKey = 'cached_locations_list';
+  static List<Map<String, dynamic>>? _cachedLocations;
+
+  static Future<List<Map<String, dynamic>>> getLocations({
+    bool forceRefresh = false,
+  }) async {
+    if (!forceRefresh &&
+        _cachedLocations != null &&
+        _cachedLocations!.isNotEmpty) {
+      return List<Map<String, dynamic>>.from(_cachedLocations!);
+    }
+
     try {
+      final prefs = await SharedPreferences.getInstance();
+      if (!forceRefresh) {
+        final cachedString = prefs.getString(_cachedLocationsKey);
+        if (cachedString != null && cachedString.isNotEmpty) {
+          try {
+            final decoded = json.decode(cachedString) as List;
+            _cachedLocations =
+                decoded.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+            // Silent refresh in background
+            _httpGet('/locations', timeout: const Duration(seconds: 8)).then((res) {
+              if (res.statusCode == 200) {
+                final fresh = json.decode(res.body) as List;
+                final freshList =
+                    fresh.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+                _cachedLocations = freshList;
+                prefs.setString(_cachedLocationsKey, res.body);
+              }
+            }).catchError((_) {});
+            return List<Map<String, dynamic>>.from(_cachedLocations!);
+          } catch (_) {}
+        }
+      }
+
       final response = await _httpGet(
         '/locations',
         timeout: const Duration(seconds: 10),
@@ -714,13 +748,19 @@ class ApiService {
       if (response.statusCode == 200) {
         final data =
             await compute<String, dynamic>(_decodeJson, response.body) as List;
-        return data.map((json) => json as Map<String, dynamic>).toList();
+        final list = data.map((json) => json as Map<String, dynamic>).toList();
+        _cachedLocations = list;
+        prefs.setString(_cachedLocationsKey, response.body);
+        return list;
       } else {
         throw Exception('Failed to load locations: ${response.statusCode}');
       }
     } catch (e) {
       debugPrint('❌ API: Exception fetching locations: $e');
-      rethrow;
+      if (_cachedLocations != null && _cachedLocations!.isNotEmpty) {
+        return List<Map<String, dynamic>>.from(_cachedLocations!);
+      }
+      return [];
     }
   }
 
@@ -1456,6 +1496,7 @@ class ApiService {
     required String costCenter,
     required String iid,
     required List<Map<String, dynamic>> transactions,
+    String? salesmanCode,
   }) async {
     try {
       final response = await _httpPost(
@@ -1467,6 +1508,8 @@ class ApiService {
           'costCenter': costCenter,
           'iid': iid,
           'transactions': transactions,
+          if (salesmanCode != null && salesmanCode.isNotEmpty)
+            'salesmanCode': salesmanCode,
         }),
       );
 

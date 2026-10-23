@@ -5825,66 +5825,7 @@ class _SalesOrderPageState extends State<SalesOrderPage>
                 side: BorderSide(color: _accentColor, width: 1.5),
               ),
             ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed:
-                        _selectedCustomer == null || _isRecallingQuotation
-                        ? null
-                        : _recallQuotationForSalesOrder,
-                    icon: _isRecallingQuotation
-                        ? SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Theme.of(context).colorScheme.onPrimary,
-                            ),
-                          )
-                        : const Icon(Icons.description_rounded),
-                    label: Text(
-                      (_recalledQuotationNo?.isNotEmpty ?? false)
-                          ? _recalledQuotationNo!
-                          : 'Quotations',
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 16,
-                        horizontal: 8,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      backgroundColor: _accentColor,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextField(
-                    controller: _remarksController,
-                    readOnly: true,
-                    onTap: _openRemarksDialog,
-                    decoration: InputDecoration(
-                      labelText: 'Remarks',
-                      hintText: 'Enter remarks',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      prefixIcon: const Icon(Icons.notes_rounded),
-                      suffixIcon: const Icon(Icons.open_in_full_rounded),
-                      filled: true,
-                      fillColor: Colors.white,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+
             const SizedBox(height: 12),
             Expanded(
               child: Card(
