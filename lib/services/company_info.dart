@@ -2,8 +2,8 @@ import 'package:pdf/widgets.dart' as pw;
 
 /// Seller / company details shown on generated document PDFs.
 class CompanyInfo {
-  static const String name = 'Manuthi Foods (Pvt) Ltd';
-  static const String addressLine1 = 'School Lane, Bokundara';
+  static const String name = 'Manuthi Foods(Pvt) Ltd';
+  static const String addressLine1 = 'No.86, Weera Mawatha, Bokundara';
   static const String addressLine2 = 'Piliyandala';
   static const String phone = '0777999980';
   static const String email = 'info@manuthifoods.lk';
