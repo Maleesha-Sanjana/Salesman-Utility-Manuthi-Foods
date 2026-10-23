@@ -2013,6 +2013,8 @@ app.post('/api/customers', async (req, res) => {
     const parsedLatitude = hasLatitude ? Number(latitude) : null;
     const parsedLongitude = hasLongitude ? Number(longitude) : null;
 
+    const cleanAddress1 = (address1 || req.body.address || '').toString().trim().substring(0, 70);
+
     if (!cleanName) {
       return res.status(400).json({
         success: false,
@@ -2020,10 +2022,10 @@ app.post('/api/customers', async (req, res) => {
       });
     }
 
-    if (!cleanCustomerId && !normalizeCustomerMobile(cleanMobile)) {
+    if (!cleanAddress1) {
       return res.status(400).json({
         success: false,
-        error: 'NIC or mobile number is required'
+        error: 'Address is required'
       });
     }
 
@@ -2359,6 +2361,8 @@ app.put('/api/customers/:customerCode', async (req, res) => {
       });
     }
 
+    const cleanAddress1 = (address1 || req.body.address || '').toString().trim().substring(0, 70);
+
     if (!cleanName) {
       return res.status(400).json({
         success: false,
@@ -2366,10 +2370,10 @@ app.put('/api/customers/:customerCode', async (req, res) => {
       });
     }
 
-    if (!cleanCustomerId && !normalizeCustomerMobile(cleanMobile)) {
+    if (!cleanAddress1) {
       return res.status(400).json({
         success: false,
-        error: 'NIC or mobile number is required'
+        error: 'Address is required'
       });
     }
 
