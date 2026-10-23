@@ -217,6 +217,11 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
     if (mounted) {
       setState(() {
         _saleLocationCode = finalCode;
+        if (finalCode == '02' || rawLoc.toLowerCase() == 'manuthi foods') {
+          _selectedCompany = 'Company';
+        } else {
+          _selectedCompany = 'Pvt Limited';
+        }
       });
     }
     debugPrint('📍 Sale location resolved to: $_saleLocationCode (raw="$rawLoc", default="$defaultLoca")');
@@ -7774,6 +7779,12 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
 
       final invoiceNo = postResult['documentNo']?.toString() ?? tempDocNo;
       final savedCustomer = Map<String, dynamic>.from(_selectedCustomer ?? {});
+      if (_saleLocationCode != null && _saleLocationCode!.isNotEmpty) {
+        savedCustomer['locaCode'] = _saleLocationCode;
+        if ((savedCustomer['location']?.toString() ?? '').trim().isEmpty) {
+          savedCustomer['location'] = _saleLocationCode;
+        }
+      }
       final savedRows = List<Map<String, dynamic>>.from(_rows);
       final savedSubtotal = subtotal;
       final savedBillDiscountAmount = billDiscountAmount;

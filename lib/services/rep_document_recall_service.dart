@@ -99,6 +99,13 @@ class RepDocumentRecallService {
       'creditPeriod': header['CreditPeriod']?.toString() ??
           header['creditPeriod']?.toString() ??
           '0',
+      'location': header['Location']?.toString() ??
+          header['LocaCode']?.toString() ??
+          header['CustomerLocation']?.toString() ??
+          '',
+      'locaCode': header['LocaCode']?.toString() ??
+          header['Location']?.toString() ??
+          '',
     };
 
     double getPriceFromRow(Map<String, dynamic> row) {

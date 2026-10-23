@@ -130,5 +130,73 @@ void main() {
         preview: false,
       );
     });
+
+    test('invoice company heading resolution for Location 1 and Location 2', () {
+      // Location 1: Manuthi Foods(Pvt) Ltd
+      expect(
+        InvoicePdfGenerator.resolveCompanyHeading(
+          customer: {'location': 'Manuthi Foods(Pvt) Ltd'},
+        ),
+        equals('Manuthi Foods(Pvt) Ltd'),
+      );
+      expect(
+        InvoicePdfGenerator.resolveCompanyHeading(
+          customer: {'location': '01'},
+        ),
+        equals('Manuthi Foods(Pvt) Ltd'),
+      );
+      expect(
+        InvoicePdfGenerator.resolveCompanyHeading(
+          customer: {'locaCode': '01'},
+        ),
+        equals('Manuthi Foods(Pvt) Ltd'),
+      );
+      expect(
+        InvoicePdfGenerator.resolveCompanyHeading(
+          customer: {'location': 'Manuthi Foods (Pvt) Ltd'},
+        ),
+        equals('Manuthi Foods(Pvt) Ltd'),
+      );
+      expect(
+        InvoicePdfGenerator.resolveCompanyHeading(
+          customer: {},
+          selectedCompany: 'Pvt Limited',
+        ),
+        equals('Manuthi Foods(Pvt) Ltd'),
+      );
+
+      // Location 2: Manuthi Foods
+      expect(
+        InvoicePdfGenerator.resolveCompanyHeading(
+          customer: {'location': 'Manuthi Foods'},
+        ),
+        equals('Manuthi Foods'),
+      );
+      expect(
+        InvoicePdfGenerator.resolveCompanyHeading(
+          customer: {'location': '02'},
+        ),
+        equals('Manuthi Foods'),
+      );
+      expect(
+        InvoicePdfGenerator.resolveCompanyHeading(
+          customer: {'locaCode': '02'},
+        ),
+        equals('Manuthi Foods'),
+      );
+      expect(
+        InvoicePdfGenerator.resolveCompanyHeading(
+          customer: {'LocationDescription': 'Manuthi Foods'},
+        ),
+        equals('Manuthi Foods'),
+      );
+      expect(
+        InvoicePdfGenerator.resolveCompanyHeading(
+          customer: {},
+          selectedCompany: 'Company',
+        ),
+        equals('Manuthi Foods'),
+      );
+    });
   });
 }

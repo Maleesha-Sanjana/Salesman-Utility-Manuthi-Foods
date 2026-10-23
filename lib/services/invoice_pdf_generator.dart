@@ -264,6 +264,7 @@ class InvoicePdfGenerator {
               documentDate: documentDate,
               creditDays: creditDays,
               selectedCompany: selectedCompany,
+              customer: customer,
             ),
             pw.SizedBox(height: 16),
             _buildCustomerBlock(
@@ -312,6 +313,60 @@ class InvoicePdfGenerator {
     );
   }
 
+  /// Resolves company name heading based on customer location or company selection.
+  /// Location 1: "Manuthi Foods(Pvt) Ltd"
+  /// Location 2: "Manuthi Foods"
+  static String resolveCompanyHeading({
+    Map<String, dynamic>? customer,
+    String? selectedCompany,
+  }) {
+    final rawLoc = (customer?['location'] ??
+            customer?['Location'] ??
+            customer?['locaCode'] ??
+            customer?['LocaCode'] ??
+            customer?['LocationCode'] ??
+            customer?['LocationDescription'] ??
+            customer?['locationDescription'] ??
+            '')
+        .toString()
+        .trim();
+
+    final lower = rawLoc.toLowerCase();
+
+    // Location 2 check:
+    // Location 2 name: "Manuthi Foods" (or code '02')
+    if (lower == '02' ||
+        lower == '2' ||
+        lower == 'manuthi foods' ||
+        (lower.contains('manuthi foods') &&
+            !lower.contains('pvt') &&
+            !lower.contains('ltd'))) {
+      return 'Manuthi Foods';
+    }
+
+    // Location 1 check:
+    // Location 1 name: "Manuthi Foods(Pvt) Ltd" (or code '01')
+    if (lower == '01' ||
+        lower == '1' ||
+        lower.contains('pvt') ||
+        lower.contains('ltd')) {
+      return 'Manuthi Foods(Pvt) Ltd';
+    }
+
+    // Fallback based on selectedCompany if customer location is unspecified:
+    final compLower = (selectedCompany ?? '').trim().toLowerCase();
+    if (compLower == 'company' ||
+        compLower == '02' ||
+        (compLower.contains('manuthi foods') &&
+            !compLower.contains('pvt') &&
+            !compLower.contains('ltd'))) {
+      return 'Manuthi Foods';
+    }
+
+    // Default to Location 1: "Manuthi Foods(Pvt) Ltd"
+    return 'Manuthi Foods(Pvt) Ltd';
+  }
+
   static pw.Widget _buildHeader({
     required pw.MemoryImage logoImage,
     required String documentTitle,
@@ -320,84 +375,53 @@ class InvoicePdfGenerator {
     required DateTime documentDate,
     required int creditDays,
     required String selectedCompany,
+    Map<String, dynamic>? customer,
   }) {
+    final companyName = resolveCompanyHeading(
+      customer: customer,
+      selectedCompany: selectedCompany,
+    );
+
     return pw.Row(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
         pw.Expanded(
-          child: selectedCompany == 'Company'
-              ? pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Image(logoImage, height: 36, fit: pw.BoxFit.contain),
-                    pw.SizedBox(height: 8),
-                    pw.Text(
-                      'Manuthi Foods Company',
-                      style: pw.TextStyle(
-                        fontSize: 11,
-                        fontWeight: pw.FontWeight.bold,
-                      ),
-                    ),
-                    pw.SizedBox(height: 2),
-                    pw.Text(
-                      '${CompanyInfo.addressLine1}, ${CompanyInfo.addressLine2}',
-                      style: const pw.TextStyle(
-                        fontSize: 8.5,
-                        color: PdfColors.grey700,
-                      ),
-                    ),
-                    pw.Text(
-                      'Tel: ${_formatPhone(CompanyInfo.phone)}',
-                      style: const pw.TextStyle(
-                        fontSize: 8.5,
-                        color: PdfColors.grey700,
-                      ),
-                    ),
-                    pw.Text(
-                      'Email: ${CompanyInfo.email}',
-                      style: const pw.TextStyle(
-                        fontSize: 8.5,
-                        color: PdfColors.grey700,
-                      ),
-                    ),
-                  ],
-                )
-              : pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Image(logoImage, height: 36, fit: pw.BoxFit.contain),
-                    pw.SizedBox(height: 8),
-                    pw.Text(
-                      CompanyInfo.name,
-                      style: pw.TextStyle(
-                        fontSize: 11,
-                        fontWeight: pw.FontWeight.bold,
-                      ),
-                    ),
-                    pw.SizedBox(height: 2),
-                    pw.Text(
-                      '${CompanyInfo.addressLine1}, ${CompanyInfo.addressLine2}',
-                      style: const pw.TextStyle(
-                        fontSize: 8.5,
-                        color: PdfColors.grey700,
-                      ),
-                    ),
-                    pw.Text(
-                      'Tel: ${_formatPhone(CompanyInfo.phone)}',
-                      style: const pw.TextStyle(
-                        fontSize: 8.5,
-                        color: PdfColors.grey700,
-                      ),
-                    ),
-                    pw.Text(
-                      'Email: ${CompanyInfo.email}',
-                      style: const pw.TextStyle(
-                        fontSize: 8.5,
-                        color: PdfColors.grey700,
-                      ),
-                    ),
-                  ],
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Image(logoImage, height: 36, fit: pw.BoxFit.contain),
+              pw.SizedBox(height: 8),
+              pw.Text(
+                companyName,
+                style: pw.TextStyle(
+                  fontSize: 11,
+                  fontWeight: pw.FontWeight.bold,
                 ),
+              ),
+              pw.SizedBox(height: 2),
+              pw.Text(
+                '${CompanyInfo.addressLine1}, ${CompanyInfo.addressLine2}',
+                style: const pw.TextStyle(
+                  fontSize: 8.5,
+                  color: PdfColors.grey700,
+                ),
+              ),
+              pw.Text(
+                'Tel: ${_formatPhone(CompanyInfo.phone)}',
+                style: const pw.TextStyle(
+                  fontSize: 8.5,
+                  color: PdfColors.grey700,
+                ),
+              ),
+              pw.Text(
+                'Email: ${CompanyInfo.email}',
+                style: const pw.TextStyle(
+                  fontSize: 8.5,
+                  color: PdfColors.grey700,
+                ),
+              ),
+            ],
+          ),
         ),
         pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.end,
