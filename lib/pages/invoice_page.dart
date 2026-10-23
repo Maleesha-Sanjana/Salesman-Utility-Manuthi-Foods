@@ -62,6 +62,9 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
   String? _recalledSalesOrderNo;
   Map<String, String>? _selectedCustomer;
   double? _customerOutstanding;
+  String? _saleLocationCode;
+  String? _stockLocationCode;
+  List<Map<String, dynamic>> _locations = [];
 
   double _invoiceDiscount = 0.0;
   bool _isPercentageDiscount = true;
@@ -91,8 +94,138 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
     // Check if current customer has saved data when page loads
     _checkForSavedData();
     _loadPendingInvoiceCount();
+    _loadLocations();
     _restoreActiveDraft();
     _warmUpLocalCaches();
+  }
+
+  Future<void> _loadLocations() async {
+    try {
+      final locs = await ApiService.getLocations();
+      if (mounted) {
+        setState(() {
+          _locations = locs;
+        });
+        _resolveSalesmanStockLocation();
+        if (_selectedCustomer != null && _saleLocationCode == null) {
+          _resolveSaleLocationForCustomer(_selectedCustomer!['location']);
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ Error loading locations in invoice page: $e');
+    }
+  }
+
+  String _resolveSalesmanStockLocation() {
+    if (_stockLocationCode != null && _stockLocationCode!.isNotEmpty) {
+      return _stockLocationCode!;
+    }
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final sm = authProvider.currentSalesman;
+    final smLocName = (sm?.location ?? sm?.locationDescription ?? '').trim();
+    final fallbackCode = sm?.locationCode ?? '01';
+
+    if (smLocName.isEmpty) {
+      _stockLocationCode = fallbackCode;
+      return fallbackCode;
+    }
+
+    // 1. Compare salesman location name from gen_salesman to gen_location.LocationDescription
+    for (final loc in _locations) {
+      final desc = (loc['LocationDescription'] ?? '').toString().trim();
+      final code = (loc['LocationCode'] ?? '').toString().trim();
+      if (desc.isNotEmpty && desc.toLowerCase() == smLocName.toLowerCase()) {
+        _stockLocationCode = code;
+        debugPrint('📦 Salesman location "$smLocName" matched LocationDescription "$desc" -> LocationCode: $code for stock reducing');
+        return code;
+      }
+    }
+
+    // 2. Also check if location directly matches LocationCode
+    for (final loc in _locations) {
+      final code = (loc['LocationCode'] ?? '').toString().trim();
+      if (code.isNotEmpty && code.toLowerCase() == smLocName.toLowerCase()) {
+        _stockLocationCode = code;
+        debugPrint('📦 Salesman location "$smLocName" directly matched LocationCode: $code for stock reducing');
+        return code;
+      }
+    }
+
+    _stockLocationCode = fallbackCode;
+    return fallbackCode;
+  }
+
+  Future<void> _resolveSaleLocationForCustomer(String? customerLocation) async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final defaultLoca = authProvider.currentSalesman?.location ?? '01';
+
+    String rawLoc = (customerLocation ?? '').trim();
+    if (rawLoc.isEmpty && _selectedCustomer != null) {
+      final code = _selectedCustomer!['code'] ?? '';
+      final custMatch = _customers.where(
+        (c) => (c['code'] ?? c['CustomerCode'])?.toString() == code,
+      );
+      if (custMatch.isNotEmpty) {
+        rawLoc = (custMatch.first['location'] ?? custMatch.first['Location'] ?? '')
+            .toString()
+            .trim();
+      }
+    }
+
+    if (rawLoc.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _saleLocationCode = defaultLoca;
+        });
+      }
+      return;
+    }
+
+    if (_locations.isEmpty) {
+      try {
+        _locations = await ApiService.getLocations();
+      } catch (e) {
+        debugPrint('⚠️ Error fetching locations in _resolveSaleLocationForCustomer: $e');
+      }
+    }
+
+    String? matchedCode;
+    // 1. Search and compare customer location name to gen_location.LocationDescription
+    for (final loc in _locations) {
+      final desc = (loc['LocationDescription'] ?? '').toString().trim();
+      final code = (loc['LocationCode'] ?? '').toString().trim();
+      if (desc.isNotEmpty && desc.toLowerCase() == rawLoc.toLowerCase()) {
+        matchedCode = code;
+        debugPrint('📍 Customer location "$rawLoc" matched LocationDescription "$desc" -> LocationCode: $code');
+        break;
+      }
+    }
+
+    // 2. Also check if customer location directly matches LocationCode (e.g. '01')
+    if (matchedCode == null) {
+      for (final loc in _locations) {
+        final code = (loc['LocationCode'] ?? '').toString().trim();
+        if (code.isNotEmpty && code.toLowerCase() == rawLoc.toLowerCase()) {
+          matchedCode = code;
+          debugPrint('📍 Customer location "$rawLoc" directly matched LocationCode: $code');
+          break;
+        }
+      }
+    }
+
+    final finalCode = matchedCode ?? defaultLoca;
+    if (mounted) {
+      setState(() {
+        _saleLocationCode = finalCode;
+      });
+    }
+    debugPrint('📍 Sale location resolved to: $_saleLocationCode (raw="$rawLoc", default="$defaultLoca")');
+
+    // Re-sync UI rows to temp transactions with new location code if rows exist
+    if (_rows.isNotEmpty) {
+      _syncUiRowsToTempTransactions();
+    }
+    _persistActiveDraft(immediate: true);
   }
 
   void _warmUpLocalCaches() {
@@ -144,7 +277,7 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
       if (customerCode.isEmpty) return;
       
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final locaCode = authProvider.currentSalesman?.location ?? '01';
+      final locaCode = _saleLocationCode ?? authProvider.currentSalesman?.location ?? '01';
       final costCenter = '000001';
 
       final outstanding = await ApiService.getCustomerOutstanding(
@@ -276,6 +409,7 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
       'recalledSalesOrderNo': _recalledSalesOrderNo,
       'selectedSalesOrder': _selectedSalesOrder,
       'activeTempDocNo': _activeTempDocNo,
+      'saleLocationCode': _saleLocationCode,
     };
   }
 
@@ -365,9 +499,13 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
           );
         }
         _activeTempDocNo = data['activeTempDocNo'] as String?;
+        _saleLocationCode = data['saleLocationCode'] as String?;
       });
 
       if (!mounted) return;
+      if (_saleLocationCode == null && _selectedCustomer != null) {
+        await _resolveSaleLocationForCustomer(_selectedCustomer!['location']);
+      }
       final cart = Provider.of<CartProvider>(context, listen: false);
       cart.setCustomerInfo(name: _selectedCustomer?['name']);
       await _checkForSavedData();
@@ -453,6 +591,8 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
         setState(() {
           // Clear customer selection
           _selectedCustomer = null;
+          _saleLocationCode = null;
+          _stockLocationCode = null;
           _clearRecalledQuotation();
           _clearRecalledSalesOrder();
           // Clear table rows
@@ -4853,7 +4993,7 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                   'packSize': selectedItem?['packSize'] ?? 1.0,
                   'reOrderQty': selectedItem?['reOrderQty'] ?? 0.0,
                   'batchNo': selectedItem?['batchNo'] ?? '',
-                  'stockLoca': selectedItem?['stockLoca'] ?? '',
+                  'stockLoca': _resolveSalesmanStockLocation(),
                   'tax': selectedItem?['tax'] ?? 0.0,
                   'serialNo': selectedItem?['serialNo'] ?? '',
                   'warrantyPeriod': selectedItem?['warrantyPeriod'] ?? 0.0,
@@ -6649,27 +6789,6 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
         leading: widget.appBarLeading,
         title: const Text('Invoice'),
         actions: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0),
-            child: DropdownButton<String>(
-              value: _selectedCompany,
-              underline: const SizedBox(),
-              items: <String>['Pvt Limited', 'Company'].map((String value) {
-                return DropdownMenuItem<String>(
-                  value: value,
-                  child: Text(value, style: const TextStyle(fontSize: 14)),
-                );
-              }).toList(),
-              onChanged: (String? newValue) {
-                if (newValue != null) {
-                  setState(() {
-                    _selectedCompany = newValue;
-                  });
-                  _scheduleDraftPersistFromController();
-                }
-              },
-            ),
-          ),
           ProductImageDownloadButton(accentColor: _accentColor),
           // Total Amount Display
           Padding(
@@ -6725,6 +6844,7 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                           setState(() {
                             if (selection.isEmpty) {
                               _selectedCustomer = null;
+                              _saleLocationCode = null;
                               _clearRecalledQuotation(clearRows: true);
                               _clearRecalledSalesOrder();
                               cart.setCustomerInfo(name: null, location: null);
@@ -6738,6 +6858,17 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                               );
                             }
                           });
+
+                          if (selection.isNotEmpty) {
+                            await _resolveSaleLocationForCustomer(selection['location']);
+                          } else {
+                            final authProvider = Provider.of<AuthProvider>(context, listen: false);
+                            if (mounted) {
+                              setState(() {
+                                _saleLocationCode = authProvider.currentSalesman?.location ?? '01';
+                              });
+                            }
+                          }
                           // Check for saved data after customer selection
                           _checkForSavedData();
                           _fetchCustomerOutstanding();
@@ -7106,6 +7237,7 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
     required String locaCode,
     required String userName,
   }) {
+    final salesmanStockLoca = _resolveSalesmanStockLocation();
     return _rows.asMap().entries.map((entry) {
       final rowIndex = entry.key + 1;
       final row = entry.value;
@@ -7173,9 +7305,7 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
         'discPer': discPer,
         'discAmount': discAmount,
         'amount': amount,
-        'stockLoca': row['stockLoca']?.toString().isNotEmpty == true
-            ? row['stockLoca'].toString()
-            : locaCode,
+        'stockLoca': salesmanStockLoca,
         'tax': (row['tax'] as num?)?.toDouble() ?? 0.0,
         'rowIdx': rowIndex,
         'serialNo': row['serialNo']?.toString() ?? '',
@@ -7206,7 +7336,7 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final salesmanCode = authProvider.salesmanCode;
     final userName = authProvider.currentSalesman?.salesmanName ?? salesmanCode;
-    final locaCode = authProvider.currentSalesman?.location ?? '01';
+    final locaCode = _saleLocationCode ?? authProvider.currentSalesman?.location ?? '01';
     const costCenter = '000001';
     final tempDocNo = _getActiveTempDocNo();
     final transactions = _rows.isEmpty
@@ -7224,6 +7354,7 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
         costCenter: costCenter,
         iid: 'INV',
         transactions: transactions,
+        salesmanCode: salesmanCode,
       );
       if (_rows.isEmpty) {
         _activeTempDocNo = null;
@@ -7290,7 +7421,7 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
     try {
       final tempDocNo = _getActiveTempDocNo();
       final documentDate = DateTime.now();
-      final locaCode = salesmanLocation ?? '01';
+      final locaCode = _saleLocationCode ?? salesmanLocation ?? '01';
       // Cost center format: must match gen_documentno format (e.g., '000001' for Costcenter)
       final costCenter =
           '000001'; // Default cost center - must match gen_documentno format
@@ -7630,6 +7761,7 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
         costCenter: costCenter,
         iid: 'INV',
         transactions: transactions,
+        salesmanCode: salesmanCode,
       );
 
       await ApiService.insertTempPayments(
@@ -7662,6 +7794,8 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
         setState(() {
           _rows.clear();
           _selectedCustomer = null;
+          _saleLocationCode = null;
+          _stockLocationCode = null;
           _clearRecalledQuotation();
           _clearRecalledSalesOrder();
           _invoiceDiscount = 0.0;
@@ -7815,6 +7949,8 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
         setState(() {
           _rows.clear();
           _selectedCustomer = null;
+          _saleLocationCode = null;
+          _stockLocationCode = null;
           _clearRecalledQuotation();
           _clearRecalledSalesOrder();
           _invoiceDiscount = 0.0;

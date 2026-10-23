@@ -1074,9 +1074,11 @@ app.post('/api/auth/login', async (req, res) => {
       .input('userName', sql.NVarChar, salesmanCode)
       .input('password', sql.NVarChar, password)
       .query(`
-        SELECT s.*, l.LocationDescription, l.CompanyCode
+        SELECT s.*, l.LocationCode, l.LocationDescription, l.CompanyCode
         FROM gen_salesman s
-        LEFT JOIN gen_location l ON s.Location = l.LocationCode
+        LEFT JOIN gen_location l 
+          ON (LTRIM(RTRIM(LOWER(s.Location))) = LTRIM(RTRIM(LOWER(l.LocationDescription)))
+              OR LTRIM(RTRIM(LOWER(s.Location))) = LTRIM(RTRIM(LOWER(l.LocationCode))))
         WHERE s.userName = @userName
         AND CAST(s.password AS nvarchar(max)) = @password
         AND (s.BlackListed = 0 OR s.BlackListed IS NULL)
@@ -1134,9 +1136,11 @@ app.get('/api/salesmen/:salesmanCode/profile', async (req, res) => {
     const result = await pool.request()
       .input('salesmanCode', sql.NVarChar(50), salesmanCode)
       .query(`
-        SELECT s.*, l.LocationDescription, l.CompanyCode
+        SELECT s.*, l.LocationCode, l.LocationDescription, l.CompanyCode
         FROM gen_salesman s
-        LEFT JOIN gen_location l ON s.Location = l.LocationCode
+        LEFT JOIN gen_location l 
+          ON (LTRIM(RTRIM(LOWER(s.Location))) = LTRIM(RTRIM(LOWER(l.LocationDescription)))
+              OR LTRIM(RTRIM(LOWER(s.Location))) = LTRIM(RTRIM(LOWER(l.LocationCode))))
         WHERE s.SalesmanCode = @salesmanCode
            OR s.SalesmanName = @salesmanCode
            OR s.userName = @salesmanCode
@@ -1310,9 +1314,11 @@ app.post('/api/auth/login-password', async (req, res) => {
     const result = await pool.request()
       .input('password', sql.NVarChar, password)
       .query(`
-        SELECT s.*, l.LocationDescription, l.CompanyCode
+        SELECT s.*, l.LocationCode, l.LocationDescription, l.CompanyCode
         FROM gen_salesman s
-        LEFT JOIN gen_location l ON s.Location = l.LocationCode
+        LEFT JOIN gen_location l 
+          ON (LTRIM(RTRIM(LOWER(s.Location))) = LTRIM(RTRIM(LOWER(l.LocationDescription)))
+              OR LTRIM(RTRIM(LOWER(s.Location))) = LTRIM(RTRIM(LOWER(l.LocationCode))))
         WHERE CAST(s.password AS nvarchar(max)) = @password
         AND (s.BlackListed = 0 OR s.BlackListed IS NULL)
         AND (s.Suspend = 0 OR s.Suspend IS NULL)
@@ -1605,12 +1611,8 @@ function buildDuplicateCustomerMessage(existing) {
   return `Customer already registered as "${name}" (${code}) under rep ${rep}. Use NIC/mobile to identify the existing customer.`;
 }
 
-const CUSTOMER_CREATED_SALESMAN_VISIBILITY = `
-  AND (
-    @createdSalesman = ''
-    OR SalesRepCode = @createdSalesman
-  )
-`;
+// Show all active customers across all reps/salesmen (no salesman filtration)
+const CUSTOMER_CREATED_SALESMAN_VISIBILITY = '';
 
 // Lightweight customer list for sales screens (picker)
 app.get('/api/customers/list', async (req, res) => {
@@ -2834,9 +2836,11 @@ app.get('/api/salesmen', async (req, res) => {
     }
     
     const result = await pool.request().query(`
-      SELECT s.*, l.LocationDescription
+      SELECT s.*, l.LocationCode, l.LocationDescription
       FROM gen_salesman s
-      LEFT JOIN gen_location l ON s.Location = l.LocationCode
+      LEFT JOIN gen_location l 
+        ON (LTRIM(RTRIM(LOWER(s.Location))) = LTRIM(RTRIM(LOWER(l.LocationDescription)))
+            OR LTRIM(RTRIM(LOWER(s.Location))) = LTRIM(RTRIM(LOWER(l.LocationCode))))
       WHERE (s.BlackListed = 0 OR s.BlackListed IS NULL)
         AND (s.Suspend = 0 OR s.Suspend IS NULL)
       ORDER BY s.SalesmanName, s.SalesmanCode
@@ -3420,10 +3424,7 @@ app.get('/api/locations', async (req, res) => {
         CompanyCode,
         Address1,
         Address2,
-        Address3,
-        Tno,
-        Fax,
-        Email
+        Address3
       FROM gen_location
       ORDER BY LocationCode
     `);
@@ -5450,7 +5451,7 @@ app.post('/api/invoice/temp-transactions', async (req, res) => {
       return res.status(503).json({ success: false, error: 'Database not connected' });
     }
 
-    const { tempDocNo, locaCode, costCenter, iid, transactions } = req.body;
+    const { tempDocNo, locaCode, costCenter, iid, transactions, salesmanCode } = req.body;
 
     if (!tempDocNo || !locaCode || !costCenter || !iid || !Array.isArray(transactions)) {
       return res.status(400).json({
@@ -5471,6 +5472,34 @@ app.post('/api/invoice/temp-transactions', async (req, res) => {
     await transaction.begin(sql.ISOLATION_LEVEL.SERIALIZABLE);
 
     try {
+      // Resolve salesman location from gen_salesman Location column for StockLoca
+      let salesmanStockLoca = null;
+      const effectiveSalesmanCode = salesmanCode || (transactions[0]?.createdUser);
+      if (effectiveSalesmanCode) {
+        try {
+          const smLocMatch = await new sql.Request(transaction)
+            .input('smCode', sql.VarChar(50), effectiveSalesmanCode)
+            .query(`
+              SELECT TOP 1 
+                s.Location AS SalesmanLocation,
+                l.LocationCode
+              FROM gen_salesman s
+              INNER JOIN gen_location l 
+                ON (LTRIM(RTRIM(LOWER(s.Location))) = LTRIM(RTRIM(LOWER(l.LocationDescription)))
+                    OR LTRIM(RTRIM(LOWER(s.Location))) = LTRIM(RTRIM(LOWER(l.LocationCode))))
+              WHERE (s.SalesmanCode = @smCode OR s.userName = @smCode)
+                AND s.Location IS NOT NULL 
+                AND LTRIM(RTRIM(s.Location)) <> ''
+            `);
+          if (smLocMatch.recordset.length > 0 && smLocMatch.recordset[0].LocationCode) {
+            salesmanStockLoca = normalizeLocaCode(smLocMatch.recordset[0].LocationCode);
+            console.log(`📦 Salesman ${effectiveSalesmanCode} stock location "${smLocMatch.recordset[0].SalesmanLocation}" matched gen_location LocationCode: ${salesmanStockLoca}`);
+          }
+        } catch (smErr) {
+          console.warn('⚠️ Error checking salesman location for temp transactions:', smErr.message);
+        }
+      }
+
       // Delete existing transactions for this temp document
       await new sql.Request(transaction)
         .input('tempDocNo', sql.VarChar(20), tempDocNo)
@@ -5505,7 +5534,7 @@ app.post('/api/invoice/temp-transactions', async (req, res) => {
           .input('discPer', sql.Decimal(10, 3), txn.discPer || 0)
           .input('discAmount', sql.Decimal(10, 3), txn.discAmount || 0)
           .input('amount', sql.Decimal(10, 3), txn.amount || 0)
-          .input('stockLoca', sql.VarChar(5), normalizeLocaCode(txn.stockLoca || finalLocaCode))
+          .input('stockLoca', sql.VarChar(5), normalizeLocaCode(txn.stockLoca || salesmanStockLoca || finalLocaCode))
           .input('tax', sql.Decimal(10, 3), txn.tax || 0)
           .input('serialNo', sql.VarChar(50), txn.serialNo || '')
           .input('warrantyPeriod', sql.Int, txn.warrantyPeriod || 0)
@@ -5761,7 +5790,7 @@ app.post('/api/invoice/post', async (req, res) => {
     }
 
     const finalIid = 'INV';
-    const finalLocaCode = normalizeLocaCode(locaCode);
+    let finalLocaCode = normalizeLocaCode(locaCode);
     const finalCostCenter = normalizeCostCenter(costCenter);
 
     console.log(`📋 Posting invoice: TempDocNo=${tempDocNo}, Customer=${customerCode}, Action=${docAction}`);
@@ -5770,6 +5799,89 @@ app.post('/api/invoice/post', async (req, res) => {
     await transaction.begin(sql.ISOLATION_LEVEL.SERIALIZABLE);
 
     try {
+      // Search customer location in gen_customer and compare to gen_location LocationDescription column
+      if (customerCode) {
+        try {
+          const custLocMatch = await new sql.Request(transaction)
+            .input('custCode', sql.VarChar(50), customerCode)
+            .query(`
+              SELECT TOP 1 
+                c.Location AS CustomerLocation,
+                l.LocationCode
+              FROM gen_customer c
+              INNER JOIN gen_location l 
+                ON (LTRIM(RTRIM(LOWER(c.Location))) = LTRIM(RTRIM(LOWER(l.LocationDescription)))
+                    OR LTRIM(RTRIM(LOWER(c.Location))) = LTRIM(RTRIM(LOWER(l.LocationCode))))
+              WHERE c.CustomerCode = @custCode
+                AND c.Location IS NOT NULL 
+                AND LTRIM(RTRIM(c.Location)) <> ''
+            `);
+
+          if (custLocMatch.recordset.length > 0 && custLocMatch.recordset[0].LocationCode) {
+            const matchedLoca = normalizeLocaCode(custLocMatch.recordset[0].LocationCode);
+            const custLocName = custLocMatch.recordset[0].CustomerLocation;
+            console.log(`📍 Customer ${customerCode} location "${custLocName}" matched gen_location LocationCode: ${matchedLoca} (passed: ${finalLocaCode})`);
+
+            if (matchedLoca !== finalLocaCode) {
+              // Update temp transactions and temp payments to the matched location code so SP finds them
+              await new sql.Request(transaction)
+                .input('tempDocNo', sql.VarChar(20), tempDocNo)
+                .input('oldLoca', sql.VarChar(5), finalLocaCode)
+                .input('newLoca', sql.VarChar(5), matchedLoca)
+                .query(`
+                  UPDATE inv_temptransaction 
+                  SET LocaCode = @newLoca 
+                  WHERE TempDocNo = @tempDocNo AND LocaCode = @oldLoca;
+
+                  UPDATE inv_temppayment 
+                  SET LocaCode = @newLoca 
+                  WHERE TempDocNo = @tempDocNo AND LocaCode = @oldLoca;
+                `);
+              finalLocaCode = matchedLoca;
+            }
+          }
+        } catch (locErr) {
+          console.warn('⚠️ Error checking customer location against gen_location:', locErr.message);
+        }
+      }
+
+      // Search salesman location in gen_salesman and compare to gen_location LocationDescription column for StockLoca
+      if (salesmanCode) {
+        try {
+          const smLocMatch = await new sql.Request(transaction)
+            .input('smCode', sql.VarChar(50), salesmanCode)
+            .query(`
+              SELECT TOP 1 
+                s.Location AS SalesmanLocation,
+                l.LocationCode
+              FROM gen_salesman s
+              INNER JOIN gen_location l 
+                ON (LTRIM(RTRIM(LOWER(s.Location))) = LTRIM(RTRIM(LOWER(l.LocationDescription)))
+                    OR LTRIM(RTRIM(LOWER(s.Location))) = LTRIM(RTRIM(LOWER(l.LocationCode))))
+              WHERE (s.SalesmanCode = @smCode OR s.userName = @smCode)
+                AND s.Location IS NOT NULL 
+                AND LTRIM(RTRIM(s.Location)) <> ''
+            `);
+
+          if (smLocMatch.recordset.length > 0 && smLocMatch.recordset[0].LocationCode) {
+            const matchedStockLoca = normalizeLocaCode(smLocMatch.recordset[0].LocationCode);
+            const smLocName = smLocMatch.recordset[0].SalesmanLocation;
+            console.log(`📦 Salesman ${salesmanCode} location "${smLocName}" matched gen_location LocationCode: ${matchedStockLoca} -> updating StockLoca for stock reducing`);
+
+            await new sql.Request(transaction)
+              .input('tempDocNo', sql.VarChar(20), tempDocNo)
+              .input('stockLoca', sql.VarChar(5), matchedStockLoca)
+              .query(`
+                UPDATE inv_temptransaction 
+                SET StockLoca = @stockLoca 
+                WHERE TempDocNo = @tempDocNo;
+              `);
+          }
+        } catch (smLocErr) {
+          console.warn('⚠️ Error checking salesman location against gen_location for StockLoca:', smLocErr.message);
+        }
+      }
+
       // Validate temp transactions exist before touching gen_documentno
       const tempCountResult = await new sql.Request(transaction)
         .input('tempDocNo', sql.VarChar(20), tempDocNo)
@@ -5788,14 +5900,15 @@ app.post('/api/invoice/post', async (req, res) => {
         throw new Error(`Cannot post invoice: No items found in temp transaction table for TempDocNo=${tempDocNo}. Posting aborted to prevent empty invoice creation.`);
       }
 
-      const docNoResult = await new sql.Request(transaction)
+      let docNoResult = await new sql.Request(transaction)
         .input('transactionId', sql.VarChar(5), finalIid)
         .input('locaCode', sql.VarChar(5), finalLocaCode)
         .input('costCenter', sql.VarChar(10), finalCostCenter)
         .query(`
           SELECT TOP 1
             orgdocumentno AS OrgDocumentNo,
-            Prifix AS Prefix
+            Prifix AS Prefix,
+            LocaCode AS ConfiguredLocaCode
           FROM gen_documentno WITH (UPDLOCK, HOLDLOCK)
           WHERE TransactionId = @transactionId
             AND LocaCode = @locaCode
@@ -5803,10 +5916,30 @@ app.post('/api/invoice/post', async (req, res) => {
         `);
 
       if (docNoResult.recordset.length === 0) {
+        // Fallback to salesman's locaCode or default location '01' if customer location has no separate document sequence
+        docNoResult = await new sql.Request(transaction)
+          .input('transactionId', sql.VarChar(5), finalIid)
+          .input('salesmanLoca', sql.VarChar(5), normalizeLocaCode(locaCode))
+          .input('costCenter', sql.VarChar(10), finalCostCenter)
+          .query(`
+            SELECT TOP 1
+              orgdocumentno AS OrgDocumentNo,
+              Prifix AS Prefix,
+              LocaCode AS ConfiguredLocaCode
+            FROM gen_documentno WITH (UPDLOCK, HOLDLOCK)
+            WHERE TransactionId = @transactionId
+              AND (LocaCode = @salesmanLoca OR LocaCode = '01')
+              AND Costcenter = @costCenter
+            ORDER BY CASE WHEN LocaCode = @salesmanLoca THEN 0 ELSE 1 END
+          `);
+      }
+
+      if (docNoResult.recordset.length === 0) {
         throw new Error(`Document number setup missing for TransactionId=${finalIid}, LocaCode=${finalLocaCode}, Costcenter=${finalCostCenter}`);
       }
 
       const docRow = docNoResult.recordset[0];
+      const configuredLoca = docRow.ConfiguredLocaCode || finalLocaCode;
       const prefix = (docRow.Prefix || 'IN').toString().trim();
       const sequence = (docRow.OrgDocumentNo || 0).toString().trim().padStart(8, '0');
       const generatedOrgDocNo = `${finalLocaCode}${prefix}${sequence}`;
@@ -5932,7 +6065,7 @@ app.post('/api/invoice/post', async (req, res) => {
 
       await new sql.Request(transaction)
         .input('transactionId', sql.VarChar(5), finalIid)
-        .input('locaCode', sql.VarChar(5), finalLocaCode)
+        .input('locaCode', sql.VarChar(5), configuredLoca)
         .input('costCenter', sql.VarChar(10), finalCostCenter)
         .query(`
           UPDATE gen_documentno

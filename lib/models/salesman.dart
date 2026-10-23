@@ -24,6 +24,7 @@ class Salesman {
   final int? suspend;
   final String? webSite;
   final String? location;
+  final String? locationCode;
   final int? showLocation;
   final bool? update;
   final DateTime? createdDate;
@@ -64,6 +65,7 @@ class Salesman {
     this.suspend,
     this.webSite,
     this.location,
+    this.locationCode,
     this.showLocation,
     this.update,
     this.createdDate,
@@ -131,6 +133,8 @@ class Salesman {
       suspend: safeParseInt(json['Suspend']),
       webSite: json['WebSite']?.toString(),
       location: json['Location']?.toString(),
+      locationCode:
+          json['LocationCode']?.toString() ?? json['locationCode']?.toString(),
       showLocation: safeParseInt(json['ShowLocation']),
       update: json['Update']?.toString() == '1',
       createdDate: safeParseDateTime(json['Created_Date']),
@@ -174,6 +178,7 @@ class Salesman {
       'Suspend': suspend,
       'WebSite': webSite,
       'Location': location,
+      'LocationCode': locationCode,
       'ShowLocation': showLocation,
       'Update': update,
       'Created_Date': createdDate?.toIso8601String(),
