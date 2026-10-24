@@ -15,19 +15,19 @@ class ApiService {
   // LOCAL DEV (simulator / Mac backend): uncomment the localhost pair below
   // and comment out the production pair.
   //
-  static const String primaryBaseUrl = 'http://localhost:3000/api';
-  static const String fallbackBaseUrl = 'http://localhost:3000/api';
+  //static const String primaryBaseUrl = 'http://localhost:3000/api';
+  //static const String fallbackBaseUrl = 'http://localhost:3000/api';
   //
   // PRODUCTION (static IP first, then LAN fallback):
   // ---------------------------------------------------------------------------
 
   /// Public / static IP — tried first.
-  //static const String primaryBaseUrl =
-  //'http://38.247.130.159:3000/api'; //Manuthi Foods
+  static const String primaryBaseUrl =
+      'http://38.247.130.159:3000/api'; //Manuthi Foods
 
   /// LAN fallback — used when primary is unreachable.
-  //static const String fallbackBaseUrl =
-  //'http://38.247.130.159:3000/api'; //Manuthi Foods
+  static const String fallbackBaseUrl =
+      'http://38.247.130.159:3000/api'; //Manuthi Foods
 
   static const String _offlineProductsKey = 'offline_products_no_images';
   static const String _cachedCustomersKey = 'cached_customers_list';
@@ -723,18 +723,22 @@ class ApiService {
         if (cachedString != null && cachedString.isNotEmpty) {
           try {
             final decoded = json.decode(cachedString) as List;
-            _cachedLocations =
-                decoded.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+            _cachedLocations = decoded
+                .map((e) => Map<String, dynamic>.from(e as Map))
+                .toList();
             // Silent refresh in background
-            _httpGet('/locations', timeout: const Duration(seconds: 8)).then((res) {
-              if (res.statusCode == 200) {
-                final fresh = json.decode(res.body) as List;
-                final freshList =
-                    fresh.map((e) => Map<String, dynamic>.from(e as Map)).toList();
-                _cachedLocations = freshList;
-                prefs.setString(_cachedLocationsKey, res.body);
-              }
-            }).catchError((_) {});
+            _httpGet('/locations', timeout: const Duration(seconds: 8))
+                .then((res) {
+                  if (res.statusCode == 200) {
+                    final fresh = json.decode(res.body) as List;
+                    final freshList = fresh
+                        .map((e) => Map<String, dynamic>.from(e as Map))
+                        .toList();
+                    _cachedLocations = freshList;
+                    prefs.setString(_cachedLocationsKey, res.body);
+                  }
+                })
+                .catchError((_) {});
             return List<Map<String, dynamic>>.from(_cachedLocations!);
           } catch (_) {}
         }
