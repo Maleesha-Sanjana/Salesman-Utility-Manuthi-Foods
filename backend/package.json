@@ -8,8 +8,8 @@
     "start": "node server.js",
     "dev": "nodemon server.js",
     "build": "npm run prepare:deploy",
-    "build:exe": "pkg . --output dist/salesman-api.exe",
-    "build:exe:here": "pkg . --output salesman-api.exe",
+    "build:exe": "pkg . --no-bytecode --public --public-packages \"*\" --output dist/salesman-api.exe",
+    "build:exe:here": "pkg . --no-bytecode --public --public-packages \"*\" --output salesman-api.exe",
     "prepare:deploy": "node scripts/prepare-deploy.js",
     "package:windows": "node scripts/package-windows-portable.js",
     "prefetch:pkg": "node scripts/prefetch-pkg-base.js"

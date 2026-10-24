@@ -42,7 +42,7 @@ if exist prefetch-pkg-base.js (
 ) else (
   echo prefetch-pkg-base.js not found - pkg may try to download the base binary itself.
 )
-
+echo Packaging executable into salesman-api.exe...
 call npm run build:exe:here
 if errorlevel 1 (
   echo.
