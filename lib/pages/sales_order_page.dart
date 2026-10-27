@@ -17,6 +17,7 @@ import '../widgets/invoice/invoice_recall_dialog.dart';
 import '../widgets/invoice/invoice_table_widget.dart';
 import '../widgets/product_image_thumbnail.dart';
 import '../widgets/product_image_download_button.dart';
+import '../widgets/price_level_selection_dialog.dart';
 
 class SalesOrderPage extends StatefulWidget {
   const SalesOrderPage({super.key, this.appBarLeading});
@@ -633,6 +634,9 @@ class _SalesOrderPageState extends State<SalesOrderPage>
 
   // Helper function to get the correct price based on sales type
   double _getPriceForItem(Map<String, dynamic> item) {
+    if (item.containsKey('selectedPrice') && item['selectedPrice'] != null) {
+      return (item['selectedPrice'] as num).toDouble();
+    }
     if (_salesType == 'Retail') {
       return (item['unitPrice'] as num?)?.toDouble() ?? 0.0;
     } else {
@@ -643,6 +647,14 @@ class _SalesOrderPageState extends State<SalesOrderPage>
 
   // Helper function to get price from row (for backward compatibility)
   double _getPriceFromRow(Map<String, dynamic> row) {
+    if (row.containsKey('selectedPrice') && row['selectedPrice'] != null) {
+      return (row['selectedPrice'] as num).toDouble();
+    }
+    if (row.containsKey('levelCode') && (row['levelCode']?.toString().isNotEmpty ?? false)) {
+      if (row.containsKey('unitPrice')) {
+        return (row['unitPrice'] as num?)?.toDouble() ?? (row['price'] as num?)?.toDouble() ?? 0.0;
+      }
+    }
     // If row has both prices stored, use based on sales type
     if (row.containsKey('unitPrice') && row.containsKey('wholeSalePrice')) {
       return _salesType == 'Retail'
@@ -766,8 +778,11 @@ class _SalesOrderPageState extends State<SalesOrderPage>
     final summary =
         '${useAmountDiscount ? 'Flat' : 'Percent'} discount • Net Rs ${finalPrice.toStringAsFixed(2)}';
 
+    final priceLevelName = selectedItem['priceLevelName']?.toString() ?? '';
+    final levelSuffix = priceLevelName.isNotEmpty ? ' ($priceLevelName)' : '';
+
     return _DiscountValidationResult(
-      itemLabel: '${selectedItem['code']} • ${selectedItem['name']}',
+      itemLabel: '${selectedItem['code']} • ${selectedItem['name']}$levelSuffix',
       quantity: quantity,
       freeQuantity: freeQuantity,
       discountLabel: discountLabel,
@@ -2968,6 +2983,26 @@ class _SalesOrderPageState extends State<SalesOrderPage>
                                                 spacing: 8,
                                                 runSpacing: 2,
                                                 children: [
+                                                  if (item['priceLevelName'] != null &&
+                                                      item['priceLevelName'].toString().isNotEmpty)
+                                                    Container(
+                                                      padding: const EdgeInsets.symmetric(
+                                                        horizontal: 6,
+                                                        vertical: 2,
+                                                      ),
+                                                      decoration: BoxDecoration(
+                                                        color: const Color(0xFF2362EC).withValues(alpha: 0.12),
+                                                        borderRadius: BorderRadius.circular(4),
+                                                      ),
+                                                      child: Text(
+                                                        item['priceLevelName'].toString(),
+                                                        style: theme.textTheme.labelSmall?.copyWith(
+                                                          color: const Color(0xFF2362EC),
+                                                          fontWeight: FontWeight.bold,
+                                                          fontSize: 10,
+                                                        ),
+                                                      ),
+                                                    ),
                                                   Text(
                                                     'Qty: $qty',
                                                     style: theme
@@ -3490,14 +3525,32 @@ class _SalesOrderPageState extends State<SalesOrderPage>
                                     ),
                                   ),
                                   DataCell(
-                                    Text(
-                                      entry.value['item']
-                                              ?.toString()
-                                              .split('•')
-                                              .last
-                                              .trim() ??
-                                          '',
-                                      overflow: TextOverflow.ellipsis,
+                                    Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Text(
+                                          entry.value['item']
+                                                  ?.toString()
+                                                  .split('•')
+                                                  .last
+                                                  .trim() ??
+                                              '',
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        if (entry.value['priceLevelName'] != null &&
+                                            entry.value['priceLevelName'].toString().isNotEmpty)
+                                          Text(
+                                            entry.value['priceLevelName'].toString(),
+                                            style: theme.textTheme.labelSmall?.copyWith(
+                                              color: const Color(0xFF2362EC),
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 10,
+                                            ),
+                                          ),
+                                      ],
                                     ),
                                   ),
                                   DataCell(Text('${entry.value['qty']}')),
@@ -3861,8 +3914,10 @@ class _SalesOrderPageState extends State<SalesOrderPage>
                   controller.text = parsed.toString();
                   errorText = null;
 
+                  final levelCode = selectedItem!['levelCode']?.toString() ?? '';
                   final existingIndex = pendingEntries.indexWhere(
-                    (e) => e['code'] == selectedItem!['code'],
+                    (e) => e['code'] == selectedItem!['code'] &&
+                           (e['levelCode']?.toString() ?? '') == levelCode,
                   );
                   if (existingIndex >= 0) {
                     pendingEntries[existingIndex]['qty'] = proposedQty;
@@ -3892,13 +3947,27 @@ class _SalesOrderPageState extends State<SalesOrderPage>
               }
             }
 
-            void addPendingEntry([Map<String, dynamic>? tappedItem]) {
+            void addPendingEntry([
+              Map<String, dynamic>? tappedItem,
+              Map<String, dynamic>? priceLevel,
+            ]) {
               if (tappedItem != null) {
-                selectedItem = tappedItem;
+                final itemCopy = Map<String, dynamic>.from(tappedItem);
+                if (priceLevel != null) {
+                  final double lvlPrice = (priceLevel['price'] as num?)?.toDouble() ?? _getPriceForItem(tappedItem);
+                  itemCopy['selectedPrice'] = lvlPrice;
+                  itemCopy['unitPrice'] = lvlPrice;
+                  itemCopy['wholeSalePrice'] = lvlPrice;
+                  itemCopy['levelCode'] = priceLevel['levelCode']?.toString() ?? '';
+                  itemCopy['priceLevelName'] = priceLevel['priceLevelName']?.toString() ?? '';
+                }
+                selectedItem = itemCopy;
               }
 
               if (selectedItem == null) return;
               final productCode = selectedItem?['code']?.toString() ?? '';
+              final levelCode = selectedItem?['levelCode']?.toString() ?? '';
+              final priceLevelName = selectedItem?['priceLevelName']?.toString() ?? '';
               final totalStock = (selectedItem?['stockQty'] as num?)?.toDouble() ?? 0.0;
 
               if (totalStock <= 0) {
@@ -3910,7 +3979,8 @@ class _SalesOrderPageState extends State<SalesOrderPage>
 
               final committedInBill = getBillCommittedQty(productCode);
               final existingIndex = pendingEntries.indexWhere(
-                (entry) => entry['code']?.toString() == productCode,
+                (entry) => entry['code']?.toString() == productCode &&
+                           (entry['levelCode']?.toString() ?? '') == levelCode,
               );
               final existingPendingQty = existingIndex >= 0
                   ? (((pendingEntries[existingIndex]['qty'] as num?)?.toInt() ?? 0) +
@@ -3949,12 +4019,15 @@ class _SalesOrderPageState extends State<SalesOrderPage>
                 final newEntry = {
                   'item': validation.itemLabel,
                   'code': productCode,
+                  'levelCode': levelCode,
+                  'priceLevelName': priceLevelName,
                   'qty': validation.quantity,
                   'freeQty': validation.freeQuantity ?? 0,
                   'discount': validation.discountLabel,
                   'price': validation.finalPrice,
                   'unitPrice': selectedItem?['unitPrice'] ?? 0.0,
                   'wholeSalePrice': selectedItem?['wholeSalePrice'] ?? 0.0,
+                  'selectedPrice': selectedItem?['selectedPrice'] ?? selectedItem?['unitPrice'] ?? 0.0,
                   'costPrice': selectedItem?['costPrice'] ?? 0.0,
                   'uom': selectedItem?['uom'] ?? 'PCS',
                   'longDescription': selectedItem?['longDescription'] ?? '',
@@ -4112,7 +4185,7 @@ class _SalesOrderPageState extends State<SalesOrderPage>
                                             crossAxisCount: 2,
                                             crossAxisSpacing: 10,
                                             mainAxisSpacing: 10,
-                                            childAspectRatio: 0.68,
+                                            childAspectRatio: 0.64,
                                           ),
                                       itemCount: visibleItems.length,
                                       itemBuilder: (context, index) {
@@ -4122,7 +4195,7 @@ class _SalesOrderPageState extends State<SalesOrderPage>
                                             selectedItem!['code'] ==
                                                 item['code'];
                                         return InkWell(
-                                          onTap: () {
+                                          onTap: () async {
                                             final itemCode = item['code']?.toString() ?? '';
                                             final totalStock = (item['stockQty'] as num?)?.toDouble() ?? 0.0;
                                             if (totalStock <= 0) {
@@ -4144,17 +4217,38 @@ class _SalesOrderPageState extends State<SalesOrderPage>
                                               });
                                               return;
                                             }
+
+                                            final rawPriceLevels = item['priceLevels'];
+                                            final List<Map<String, dynamic>> priceLevels = (rawPriceLevels is List)
+                                                ? rawPriceLevels.map((e) => Map<String, dynamic>.from(e as Map)).toList()
+                                                : <Map<String, dynamic>>[];
+
+                                            Map<String, dynamic>? chosenPriceLevel;
+                                            if (priceLevels.isNotEmpty) {
+                                              chosenPriceLevel = await PriceLevelSelectionDialog.show(
+                                                context: dialogContext,
+                                                item: item,
+                                                priceLevels: priceLevels,
+                                                accentColor: const Color(0xFF2362EC),
+                                              );
+                                              if (chosenPriceLevel == null) {
+                                                return; // User cancelled
+                                              }
+                                            }
+
                                             // Pass item directly — avoids setState/search race
                                             // that left selectedItem stale on some pages.
                                             qtyController.text = '1';
                                             freeQtyController.text = '0';
                                             discountController.text = '0';
                                             useAmountDiscount = false;
-                                            addPendingEntry(item);
+                                            addPendingEntry(item, chosenPriceLevel);
+                                            final levelCode = chosenPriceLevel?['levelCode']?.toString() ?? '';
                                             final existingIndex = pendingEntries
                                                 .indexWhere(
                                                   (e) =>
-                                                      e['code'] == item['code'],
+                                                      e['code'] == item['code'] &&
+                                                      (e['levelCode']?.toString() ?? '') == levelCode,
                                                 );
                                             if (existingIndex >= 0) {
                                               setDialogState(() {
@@ -4196,14 +4290,57 @@ class _SalesOrderPageState extends State<SalesOrderPage>
                                               crossAxisAlignment:
                                                   CrossAxisAlignment.stretch,
                                               children: [
-                                                AspectRatio(
-                                                  aspectRatio: 1,
-                                                  child: ProductImageThumbnail(
-                                                    expand: true,
-                                                    image: item['image'],
-                                                    productCode: item['code']
-                                                        ?.toString(),
-                                                  ),
+                                                Stack(
+                                                  children: [
+                                                    AspectRatio(
+                                                      aspectRatio: 1,
+                                                      child: ProductImageThumbnail(
+                                                        expand: true,
+                                                        image: item['image'],
+                                                        productCode: item['code']
+                                                            ?.toString(),
+                                                      ),
+                                                    ),
+                                                    if (item['priceLevels'] is List &&
+                                                        (item['priceLevels'] as List).isNotEmpty)
+                                                      Positioned(
+                                                        top: 4,
+                                                        right: 4,
+                                                        child: Container(
+                                                          padding: const EdgeInsets.symmetric(
+                                                            horizontal: 5,
+                                                            vertical: 2,
+                                                          ),
+                                                          decoration: BoxDecoration(
+                                                            color: Colors.black.withValues(alpha: 0.78),
+                                                            borderRadius: BorderRadius.circular(6),
+                                                            border: Border.all(
+                                                              color: theme.colorScheme.primary.withValues(alpha: 0.8),
+                                                              width: 0.8,
+                                                            ),
+                                                          ),
+                                                          child: Row(
+                                                            mainAxisSize: MainAxisSize.min,
+                                                            children: [
+                                                              Icon(
+                                                                Icons.layers_rounded,
+                                                                size: 10,
+                                                                color: theme.colorScheme.primary,
+                                                              ),
+                                                              const SizedBox(width: 2),
+                                                              Text(
+                                                                '${(item['priceLevels'] as List).length} Levels',
+                                                                style: const TextStyle(
+                                                                  color: Colors.white,
+                                                                  fontWeight: FontWeight.bold,
+                                                                  fontSize: 9,
+                                                                ),
+                                                              ),
+                                                            ],
+                                                          ),
+                                                        ),
+                                                      ),
+                                                  ],
                                                 ),
                                                 const SizedBox(height: 4),
                                                 Text(
@@ -4316,7 +4453,7 @@ class _SalesOrderPageState extends State<SalesOrderPage>
                                       ),
                                       const SizedBox(height: 4),
                                       Text(
-                                        'Code: ${selectedItem!['code']} • UoM: ${selectedItem!['uom']} • Rs ${_getPriceForItem(selectedItem!).toStringAsFixed(2)}',
+                                        'Code: ${selectedItem!['code']}${selectedItem!['priceLevelName'] != null && selectedItem!['priceLevelName'].toString().isNotEmpty ? ' • ${selectedItem!['priceLevelName']}' : ''} • UoM: ${selectedItem!['uom']} • Rs ${_getPriceForItem(selectedItem!).toStringAsFixed(2)}',
                                         style: theme.textTheme.bodySmall,
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
@@ -4528,7 +4665,14 @@ class _SalesOrderPageState extends State<SalesOrderPage>
       final productMatch = _products.where((p) => p['code']?.toString() == code);
       if (productMatch.isNotEmpty) {
         final totalStock = (productMatch.first['stockQty'] as num?)?.toDouble() ?? 0.0;
-        final freeQty = (row['freeQty'] as num?)?.toInt() ?? 0;
+        int totalCommitted = 0;
+        for (int i = 0; i < _rows.length; i++) {
+          if (_rows[i]['code']?.toString() == code) {
+            final q = i == index ? newQty : ((_rows[i]['qty'] as num?)?.toInt() ?? 0);
+            final f = (_rows[i]['freeQty'] as num?)?.toInt() ?? 0;
+            totalCommitted += (q + f);
+          }
+        }
         if (totalStock <= 0) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -4539,7 +4683,7 @@ class _SalesOrderPageState extends State<SalesOrderPage>
           );
           return;
         }
-        if ((newQty + freeQty) > totalStock) {
+        if (totalCommitted > totalStock) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Cannot increase quantity. Maximum available stock is ${totalStock.toInt()}.'),
@@ -4560,8 +4704,10 @@ class _SalesOrderPageState extends State<SalesOrderPage>
 
   void _mergeSalesOrderRow(Map<String, dynamic> row) {
     final productCode = row['code']?.toString() ?? '';
+    final levelCode = row['levelCode']?.toString() ?? '';
     final existingIndex = _rows.indexWhere(
-      (entry) => entry['code']?.toString() == productCode,
+      (entry) => entry['code']?.toString() == productCode &&
+                 (entry['levelCode']?.toString() ?? '') == levelCode,
     );
 
     if (existingIndex < 0) {
@@ -4578,6 +4724,9 @@ class _SalesOrderPageState extends State<SalesOrderPage>
         ((row['freeQty'] as num?)?.toInt() ?? 0);
     existing['discount'] = row['discount'];
     existing['price'] = row['price'];
+    existing['selectedPrice'] = row['selectedPrice'];
+    existing['levelCode'] = row['levelCode'];
+    existing['priceLevelName'] = row['priceLevelName'];
   }
 
   // Calculate subtotal after applying item-wise discounts

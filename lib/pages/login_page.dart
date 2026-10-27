@@ -217,19 +217,22 @@ class _LandingPageState extends State<LandingPage>
                                       ),
                                     ],
                                   ),
-                                  child: Image.asset(
-                                    'assets/manuthiLogo.png',
-                                    fit: BoxFit.contain,
-                                    errorBuilder:
-                                        (context, error, stackTrace) {
-                                      return Icon(
-                                        Icons.inventory_2_rounded,
-                                        size: isSmallScreen ? 45 : 55,
-                                        color: Colors.white.withValues(
-                                          alpha: 0.7,
-                                        ),
-                                      );
-                                    },
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(16),
+                                    child: Image.asset(
+                                      'assets/Manuthi.jpg',
+                                      fit: BoxFit.contain,
+                                      errorBuilder:
+                                          (context, error, stackTrace) {
+                                        return Icon(
+                                          Icons.inventory_2_rounded,
+                                          size: isSmallScreen ? 45 : 55,
+                                          color: Colors.white.withValues(
+                                            alpha: 0.7,
+                                          ),
+                                        );
+                                      },
+                                    ),
                                   ),
                                 ),
 
