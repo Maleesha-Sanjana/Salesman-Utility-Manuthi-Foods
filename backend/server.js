@@ -653,6 +653,36 @@ app.get('/api/subdepartments/:departmentCode', async (req, res) => {
   }
 });
 
+async function getPriceLevelsByProductMap() {
+  const priceLevelsByProduct = {};
+  try {
+    const plResult = await pool.request().query(`
+      SELECT 
+        RTRIM(pl.LevelCode) AS LevelCode,
+        RTRIM(pl.ProductCode) AS ProductCode,
+        CAST(pl.Price AS FLOAT) AS Price,
+        COALESCE(NULLIF(RTRIM(pl.PriceLevelName), ''), RTRIM(plm.PriceLevelName), 'Level ' + RTRIM(pl.LevelCode)) AS PriceLevelName
+      FROM inv_pricelevel pl
+      LEFT JOIN inv_pricelevelmaster plm ON RTRIM(pl.LevelCode) = RTRIM(plm.PriceLevel)
+      ORDER BY pl.ProductCode, pl.LevelCode
+    `);
+    for (const row of plResult.recordset) {
+      const pCode = (row.ProductCode || '').trim();
+      if (!priceLevelsByProduct[pCode]) {
+        priceLevelsByProduct[pCode] = [];
+      }
+      priceLevelsByProduct[pCode].push({
+        levelCode: (row.LevelCode || '').trim(),
+        priceLevelName: (row.PriceLevelName || '').trim(),
+        price: row.Price != null ? Number(row.Price) : 0,
+      });
+    }
+  } catch (err) {
+    console.warn('⚠️ Warning querying inv_pricelevel:', err.message);
+  }
+  return priceLevelsByProduct;
+}
+
 // Get all products (lightweight — no ProductImage blob)
 app.get('/api/products', async (req, res) => {
   try {
@@ -667,6 +697,13 @@ app.get('/api/products', async (req, res) => {
       WHERE LockProduct = 0 OR LockProduct IS NULL
       ORDER BY ProductCode ASC
     `);
+
+    const priceLevelsMap = await getPriceLevelsByProductMap();
+    for (const prod of result.recordset) {
+      const code = (prod.ProductCode || '').toString().trim();
+      prod.PriceLevels = priceLevelsMap[code] || [];
+    }
+
     console.log(`✅ Loaded ${result.recordset.length} items from inv_productmaster table`);
     res.json(result.recordset);
   } catch (err) {
@@ -697,6 +734,12 @@ app.get('/api/products/invoice', async (req, res) => {
       ORDER BY ProductCode ASC
     `);
 
+    const priceLevelsMap = await getPriceLevelsByProductMap();
+    for (const prod of result.recordset) {
+      const code = (prod.ProductCode || '').toString().trim();
+      prod.PriceLevels = priceLevelsMap[code] || [];
+    }
+
     if (!isRealtime) {
       setCachedResponse('products:invoice', result.recordset);
     }
@@ -705,6 +748,29 @@ app.get('/api/products/invoice', async (req, res) => {
   } catch (err) {
     console.error('Error fetching invoice products:', err);
     res.status(500).json({ error: 'Failed to fetch invoice products' });
+  }
+});
+
+// All price levels endpoint
+app.get('/api/pricelevels', async (req, res) => {
+  try {
+    if (!pool) {
+      return res.status(503).json({ error: 'Database not connected' });
+    }
+    const result = await pool.request().query(`
+      SELECT 
+        RTRIM(pl.LevelCode) AS LevelCode,
+        RTRIM(pl.ProductCode) AS ProductCode,
+        CAST(pl.Price AS FLOAT) AS Price,
+        COALESCE(NULLIF(RTRIM(pl.PriceLevelName), ''), RTRIM(plm.PriceLevelName), 'Level ' + RTRIM(pl.LevelCode)) AS PriceLevelName
+      FROM inv_pricelevel pl
+      LEFT JOIN inv_pricelevelmaster plm ON RTRIM(pl.LevelCode) = RTRIM(plm.PriceLevel)
+      ORDER BY pl.ProductCode, pl.LevelCode
+    `);
+    res.json(result.recordset);
+  } catch (err) {
+    console.error('Error fetching price levels:', err);
+    res.status(500).json({ error: 'Failed to fetch price levels' });
   }
 });
 

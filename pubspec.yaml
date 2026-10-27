@@ -93,7 +93,9 @@ flutter:
   assets:
     - assets/app.jpg
     - assets/jazz.png
-    - assets/manuthiLogo.png
+    - assets/Manuthi.jpg
+    - assets/delivery.jpg
+    - assets/notification.wav
     - assets/fonts/NotoSans-Regular.ttf
     - assets/fonts/NotoSans-Bold.ttf
 

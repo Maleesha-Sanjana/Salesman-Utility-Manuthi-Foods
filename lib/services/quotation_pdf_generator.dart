@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:intl/intl.dart';
@@ -187,7 +188,16 @@ class QuotationPdfGenerator {
     final theme = await PdfFonts.documentTheme();
     final pdf = pw.Document(theme: theme);
 
-    final logoData = await rootBundle.load('assets/manuthiLogo.png');
+    ByteData logoData;
+    try {
+      logoData = await rootBundle.load('assets/Manuthi.jpg');
+    } catch (_) {
+      try {
+        logoData = await rootBundle.load('assets/app.jpg');
+      } catch (_) {
+        logoData = await rootBundle.load('assets/jazz.png');
+      }
+    }
     final logoImage = pw.MemoryImage(logoData.buffer.asUint8List());
 
     final days = validityDaysOverride ?? validityDays;

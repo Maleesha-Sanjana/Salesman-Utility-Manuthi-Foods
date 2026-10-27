@@ -15,19 +15,19 @@ class ApiService {
   // LOCAL DEV (simulator / Mac backend): uncomment the localhost pair below
   // and comment out the production pair.
   //
-  //static const String primaryBaseUrl = 'http://localhost:3000/api';
-  //static const String fallbackBaseUrl = 'http://localhost:3000/api';
+  static const String primaryBaseUrl = 'http://localhost:3000/api';
+  static const String fallbackBaseUrl = 'http://localhost:3000/api';
   //
   // PRODUCTION (static IP first, then LAN fallback):
   // ---------------------------------------------------------------------------
 
   /// Public / static IP — tried first.
-  static const String primaryBaseUrl =
-      'http://38.247.130.159:3000/api'; //Manuthi Foods
+  //static const String primaryBaseUrl =
+  //'http://38.247.130.159:3000/api'; //Manuthi Foods
 
   /// LAN fallback — used when primary is unreachable.
-  static const String fallbackBaseUrl =
-      'http://38.247.130.159:3000/api'; //Manuthi Foods
+  //static const String fallbackBaseUrl =
+  //'http://38.247.130.159:3000/api'; //Manuthi Foods
 
   static const String _offlineProductsKey = 'offline_products_no_images';
   static const String _cachedCustomersKey = 'cached_customers_list';
@@ -1364,8 +1364,48 @@ class ApiService {
         'avgMasterCostPrice': numberValue('AvgMasterCostPrice'),
         'refCode': stringValue('RefCode'),
         'stockQty': numberValue('StockQty'),
+        'priceLevels': () {
+          final raw = product['PriceLevels'] ?? product['priceLevels'];
+          if (raw is List) {
+            return raw.map((pl) {
+              final m = pl is Map ? pl : <String, dynamic>{};
+              return {
+                'levelCode': (m['levelCode'] ?? m['LevelCode'] ?? '').toString().trim(),
+                'priceLevelName': (m['priceLevelName'] ?? m['PriceLevelName'] ?? '').toString().trim(),
+                'price': (m['price'] as num?)?.toDouble() ?? (m['Price'] as num?)?.toDouble() ?? 0.0,
+              };
+            }).toList();
+          }
+          return <Map<String, dynamic>>[];
+        }(),
       };
     }).toList();
+  }
+
+  /// Fetches raw price levels from /api/pricelevels
+  static Future<List<Map<String, dynamic>>> getPriceLevels() async {
+    try {
+      final response = await _httpGet(
+        '/pricelevels',
+        timeout: const Duration(seconds: 15),
+      );
+      if (response.statusCode == 200) {
+        final data =
+            await compute<String, dynamic>(_decodeJson, response.body) as List;
+        return data.map((json) {
+          final row = json as Map<String, dynamic>;
+          return {
+            'levelCode': (row['LevelCode'] ?? row['levelCode'] ?? '').toString().trim(),
+            'productCode': (row['ProductCode'] ?? row['productCode'] ?? '').toString().trim(),
+            'price': (row['Price'] as num?)?.toDouble() ?? (row['price'] as num?)?.toDouble() ?? 0.0,
+            'priceLevelName': (row['PriceLevelName'] ?? row['priceLevelName'] ?? '').toString().trim(),
+          };
+        }).toList();
+      }
+    } catch (e) {
+      debugPrint('⚠️ Error fetching price levels: $e');
+    }
+    return [];
   }
 
   static Future<List<Map<String, dynamic>>> getProductsForCRN() {
