@@ -1,113 +1,143 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/auth_provider.dart';
 
-class StockReportsPage extends StatefulWidget {
+class StockReportsPage extends StatelessWidget {
   const StockReportsPage({super.key, this.appBarLeading});
 
   final Widget? appBarLeading;
 
   @override
-  State<StockReportsPage> createState() => _StockReportsPageState();
-}
-
-class _StockReportsPageState extends State<StockReportsPage> {
-  DateTimeRange? _range;
-  final _searchController = TextEditingController();
-  final List<Map<String, dynamic>> _items = [
-    {'name': 'Item A', 'qty': 25},
-    {'name': 'Item B', 'qty': 0},
-    {'name': 'Item C', 'qty': 7},
-    {'name': 'Item D', 'qty': 120},
-  ];
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final auth = context.watch<AuthProvider>();
+    final sm = auth.currentSalesman;
+    final loc = (sm?.locationCode?.trim().isNotEmpty == true)
+        ? sm!.locationCode!.trim()
+        : (sm?.location?.trim().isNotEmpty == true ? sm!.location!.trim() : '01');
+    final locDesc = sm?.locationDescription?.trim();
+
     return Scaffold(
       appBar: AppBar(
-        leading: widget.appBarLeading,
+        leading: appBarLeading,
         title: const Text('Stock Reports'),
       ),
-      body: Padding(
+      body: ListView(
         padding: const EdgeInsets.all(16),
-        child: GridView.count(
-          crossAxisCount: 2,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
-          children: [
-            _CategoryTile(
-              icon: Icons.inventory_2_rounded,
-              title: 'My Stock',
-              color: const Color(0xFF10B981),
-              onTap: () => Navigator.of(context).pushNamed('/my-stock'),
-            ),
-            _CategoryTile(
-              icon: Icons.location_city_rounded,
-              title: 'Location Wise Stock',
-              color: const Color(0xFF0EA5E9),
-              onTap: () => Navigator.of(context).pushNamed('/location-stock'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _CategoryTile extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _CategoryTile({
-    required this.icon,
-    required this.title,
-    required this.color,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Ink(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.black12),
-          boxShadow: const [
-            BoxShadow(
-              color: Colors.black12,
-              blurRadius: 8,
-              offset: Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CircleAvatar(
-                backgroundColor: color.withValues(alpha: 0.15),
-                radius: 28,
-                child: Icon(icon, color: color, size: 28),
+        children: [
+          // Location Info Card
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  theme.colorScheme.primary.withValues(alpha: 0.08),
+                  theme.colorScheme.primary.withValues(alpha: 0.02),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
-              const SizedBox(height: 12),
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontWeight: FontWeight.w700),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: theme.colorScheme.primary.withValues(alpha: 0.2),
               ),
-            ],
+            ),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.15),
+                  radius: 24,
+                  child: Icon(Icons.storefront_rounded, color: theme.colorScheme.primary, size: 26),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        sm?.displayName ?? 'Salesman',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Assigned Location: $loc${locDesc != null && locDesc.isNotEmpty ? " ($locDesc)" : ""}',
+                        style: TextStyle(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
+          const SizedBox(height: 16),
+          // My Stock Tile (Keep My Stock, Location Wise Stock removed)
+          InkWell(
+            onTap: () => Navigator.of(context).pushNamed('/my-stock'),
+            borderRadius: BorderRadius.circular(16),
+            child: Ink(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.black12),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.black12,
+                    blurRadius: 8,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      backgroundColor: const Color(0xFF10B981).withValues(alpha: 0.15),
+                      radius: 28,
+                      child: const Icon(
+                        Icons.inventory_2_rounded,
+                        color: Color(0xFF10B981),
+                        size: 28,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'My Stock',
+                            style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'View real-time stock for Location $loc',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      color: theme.colorScheme.outline,
+                      size: 18,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
