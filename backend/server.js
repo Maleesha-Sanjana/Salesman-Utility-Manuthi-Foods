@@ -804,6 +804,101 @@ app.get('/api/products/stock', async (req, res) => {
   }
 });
 
+// Realtime stock for salesman's assigned location (Stock Report / My Stock)
+app.get('/api/stock/my-stock', async (req, res) => {
+  try {
+    if (!pool) {
+      return res.status(503).json({ error: 'Database not connected' });
+    }
+
+    let locaCode = (req.query.location || req.query.locaCode || '').toString().trim();
+    const salesmanCode = (req.query.salesmanCode || '').toString().trim();
+
+    if (!locaCode && salesmanCode) {
+      try {
+        const smRes = await pool.request()
+          .input('smCode', sql.NVarChar, salesmanCode)
+          .query('SELECT Location FROM gen_salesman WHERE SalesmanCode = @smCode');
+        if (smRes.recordset.length > 0 && smRes.recordset[0].Location) {
+          locaCode = smRes.recordset[0].Location.trim();
+        }
+      } catch (e) {
+        console.error('Error looking up salesman location:', e);
+      }
+    }
+
+    if (!locaCode) {
+      locaCode = '01';
+    }
+
+    const paddedLocaCode = locaCode.length === 1 ? locaCode.padStart(2, '0') : locaCode;
+
+    // Get location description if available
+    let locationDescription = '';
+    try {
+      const locRes = await pool.request()
+        .input('locCode', sql.NVarChar, locaCode)
+        .input('paddedLocCode', sql.NVarChar, paddedLocaCode)
+        .query(`
+          SELECT LocationDescription 
+          FROM gen_location 
+          WHERE LocationCode = @locCode OR LocationCode = @paddedLocCode
+        `);
+      if (locRes.recordset.length > 0) {
+        locationDescription = (locRes.recordset[0].LocationDescription || '').trim();
+      }
+    } catch (e) {
+      console.warn('Could not fetch location description:', e.message);
+    }
+
+    const request = pool.request();
+    request.input('locaCode', sql.NVarChar, locaCode);
+    request.input('paddedLocaCode', sql.NVarChar, paddedLocaCode);
+
+    const query = `
+      SELECT 
+        COALESCE(s.idx, 0) AS idx,
+        p.ProductCode,
+        p.ProductName,
+        @locaCode AS LocaCode,
+        COALESCE(s.StockQty, 0) AS StockQty,
+        COALESCE(NULLIF(s.SellingPrice, 0), p.UnitPrice, 0) AS Price,
+        COALESCE(NULLIF(s.Costprice, 0), p.CostPrice, 0) AS CostPrice,
+        COALESCE(NULLIF(s.WholeSalePrice, 0), p.WholeSalePrice, 0) AS WholeSalePrice,
+        COALESCE(d.DepartmentName, p.DepartmentCode, 'General') AS Department,
+        COALESCE(sd.SubDepartmentName, p.SubDepartmentCode, 'General') AS SubDepartment,
+        COALESCE(p.CategoryCode, '') AS Category,
+        COALESCE(p.SubCategoryCode, '') AS SubCategory,
+        COALESCE(p.SupplierCode, '') AS Supplier,
+        COALESCE(s.ReOrderQty, p.ReOrderQty, 0) AS ReOrderQty,
+        COALESCE(s.ReOrderPeriod, p.ReOrderPeriod, 0) AS ReOrderPeriod,
+        COALESCE(s.ReOrderLevel, p.ReOrderLevel, 0) AS ReOrderLevel,
+        COALESCE(s.OpenStock, 0) AS OpenStock
+      FROM inv_productmaster p
+      LEFT JOIN inv_productstockmaster s 
+        ON p.ProductCode = s.ProductCode 
+        AND (LTRIM(RTRIM(s.LocaCode)) = @locaCode OR LTRIM(RTRIM(s.LocaCode)) = @paddedLocaCode)
+      LEFT JOIN inv_department d ON p.DepartmentCode = d.DepartmentCode
+      LEFT JOIN inv_subdepartment sd ON p.SubDepartmentCode = sd.SubDepartmentCode
+      WHERE (p.LockProduct = 0 OR p.LockProduct IS NULL)
+      ORDER BY p.ProductName ASC
+    `;
+
+    const result = await request.query(query);
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.json({
+      success: true,
+      location: locaCode,
+      locationDescription: locationDescription,
+      count: result.recordset.length,
+      data: result.recordset,
+    });
+  } catch (err) {
+    console.error('Error fetching my-stock:', err);
+    res.status(500).json({ success: false, error: 'Failed to fetch stock', details: err.message });
+  }
+});
+
 function encodeProductImage(value) {
   if (value == null) return null;
   if (Buffer.isBuffer(value)) {

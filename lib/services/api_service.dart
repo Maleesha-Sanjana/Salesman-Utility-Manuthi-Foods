@@ -27,7 +27,7 @@ class ApiService {
 
   /// LAN fallback — used when primary is unreachable.
   //static const String fallbackBaseUrl =
-  //'http://38.247.130.159:3000/api'; //Manuthi Foods
+  // 'http://38.247.130.159:3000/api'; //Manuthi Foods
 
   static const String _offlineProductsKey = 'offline_products_no_images';
   static const String _cachedCustomersKey = 'cached_customers_list';
@@ -1148,7 +1148,7 @@ class ApiService {
     return fresh;
   }
 
-  /// Fetches a lightweight realtime stock map: Map<ProductCode, StockQty> in milliseconds
+  /// Fetches a lightweight realtime stock map: `Map<ProductCode, StockQty>` in milliseconds
   static Future<Map<String, double>> fetchRealtimeStockMap({
     String? productCode,
   }) async {
@@ -1175,6 +1175,38 @@ class ApiService {
       }
     } catch (e) {
       debugPrint('⚠️ Failed to fetch realtime stock map: $e');
+    }
+    return {};
+  }
+
+  /// Fetches stock for a specific location / salesman from inv_productstockmaster & inv_productmaster
+  static Future<Map<String, dynamic>> fetchMyStock({
+    String? location,
+    String? salesmanCode,
+  }) async {
+    try {
+      final params = <String>[];
+      if (location != null && location.trim().isNotEmpty) {
+        params.add('location=${Uri.encodeComponent(location.trim())}');
+      }
+      if (salesmanCode != null && salesmanCode.trim().isNotEmpty) {
+        params.add('salesmanCode=${Uri.encodeComponent(salesmanCode.trim())}');
+      }
+      final queryString = params.isNotEmpty ? '?${params.join('&')}' : '';
+      final response = await _httpGet(
+        '/stock/my-stock$queryString',
+        timeout: const Duration(seconds: 15),
+      );
+
+      if (response.statusCode == 200) {
+        final decoded =
+            await compute<String, dynamic>(_decodeJson, response.body);
+        if (decoded is Map<String, dynamic>) {
+          return decoded;
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ Error fetching my stock: $e');
     }
     return {};
   }
@@ -1370,9 +1402,17 @@ class ApiService {
             return raw.map((pl) {
               final m = pl is Map ? pl : <String, dynamic>{};
               return {
-                'levelCode': (m['levelCode'] ?? m['LevelCode'] ?? '').toString().trim(),
-                'priceLevelName': (m['priceLevelName'] ?? m['PriceLevelName'] ?? '').toString().trim(),
-                'price': (m['price'] as num?)?.toDouble() ?? (m['Price'] as num?)?.toDouble() ?? 0.0,
+                'levelCode': (m['levelCode'] ?? m['LevelCode'] ?? '')
+                    .toString()
+                    .trim(),
+                'priceLevelName':
+                    (m['priceLevelName'] ?? m['PriceLevelName'] ?? '')
+                        .toString()
+                        .trim(),
+                'price':
+                    (m['price'] as num?)?.toDouble() ??
+                    (m['Price'] as num?)?.toDouble() ??
+                    0.0,
               };
             }).toList();
           }
@@ -1395,10 +1435,20 @@ class ApiService {
         return data.map((json) {
           final row = json as Map<String, dynamic>;
           return {
-            'levelCode': (row['LevelCode'] ?? row['levelCode'] ?? '').toString().trim(),
-            'productCode': (row['ProductCode'] ?? row['productCode'] ?? '').toString().trim(),
-            'price': (row['Price'] as num?)?.toDouble() ?? (row['price'] as num?)?.toDouble() ?? 0.0,
-            'priceLevelName': (row['PriceLevelName'] ?? row['priceLevelName'] ?? '').toString().trim(),
+            'levelCode': (row['LevelCode'] ?? row['levelCode'] ?? '')
+                .toString()
+                .trim(),
+            'productCode': (row['ProductCode'] ?? row['productCode'] ?? '')
+                .toString()
+                .trim(),
+            'price':
+                (row['Price'] as num?)?.toDouble() ??
+                (row['price'] as num?)?.toDouble() ??
+                0.0,
+            'priceLevelName':
+                (row['PriceLevelName'] ?? row['priceLevelName'] ?? '')
+                    .toString()
+                    .trim(),
           };
         }).toList();
       }

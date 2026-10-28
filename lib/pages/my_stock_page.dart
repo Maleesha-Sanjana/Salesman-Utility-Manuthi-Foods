@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/auth_provider.dart';
+import '../services/api_service.dart';
 
 class MyStockPage extends StatefulWidget {
   const MyStockPage({super.key});
@@ -9,108 +12,11 @@ class MyStockPage extends StatefulWidget {
 
 class _MyStockPageState extends State<MyStockPage> {
   final _searchController = TextEditingController();
-  final List<Map<String, dynamic>> _items = [
-    {
-      'name': 'Nadu Rice 5kg',
-      'qty': 25,
-      'price': 1_250.00,
-      'department': 'Staples & Rice',
-      'subDepartment': 'Nadu Rice',
-      'category': 'Rice & Grains',
-      'subCategory': 'Nadu',
-      'supplier': 'Cargills',
-    },
-    {
-      'name': 'Samba Rice 10kg',
-      'qty': 0,
-      'price': 3_250.00,
-      'department': 'Staples & Rice',
-      'subDepartment': 'Samba Rice',
-      'category': 'Rice & Grains',
-      'subCategory': 'Samba',
-      'supplier': 'Keells',
-    },
-    {
-      'name': 'Ceylon Black Tea 200g',
-      'qty': 7,
-      'price': 950.50,
-      'department': 'Tea & Beverages',
-      'subDepartment': 'Ceylon Tea',
-      'category': 'Tea',
-      'subCategory': 'Ceylon Black Tea',
-      'supplier': 'Dilmah',
-    },
-    {
-      'name': 'Coconut Milk Powder 400g',
-      'qty': 120,
-      'price': 845.00,
-      'department': 'Coconut Products',
-      'subDepartment': 'Coconut Milk',
-      'category': 'Coconut Products',
-      'subCategory': 'Coconut Milk Powder',
-      'supplier': 'Ruhunu Foods',
-    },
-    {
-      'name': 'Maldive Fish 100g',
-      'qty': -3,
-      'price': 1_299.00,
-      'department': 'Canned & Dry Fish',
-      'subDepartment': 'Maldive Fish',
-      'category': 'Canned & Dry Fish',
-      'subCategory': 'Katta Sambol',
-      'supplier': 'MD (Mauby David)',
-    },
-    {
-      'name': 'Ceylon Cinnamon Sticks 50g',
-      'qty': 42,
-      'price': 1_750.00,
-      'department': 'Spices & Condiments',
-      'subDepartment': 'Ceylon Cinnamon',
-      'category': 'Spices',
-      'subCategory': 'Cinnamon',
-      'supplier': 'Harischandra',
-    },
-    {
-      'name': 'Coconut Oil 1L',
-      'qty': 15,
-      'price': 1_150.75,
-      'department': 'Coconut Products',
-      'subDepartment': 'Coconut Oil',
-      'category': 'Coconut Products',
-      'subCategory': 'Desiccated Coconut',
-      'supplier': 'Green Valley Foods',
-    },
-    {
-      'name': 'Katta Sambol 200g',
-      'qty': 0,
-      'price': 280.00,
-      'department': 'Sambols & Chutneys',
-      'subDepartment': 'Katta Sambol',
-      'category': 'Sambols & Chutneys',
-      'subCategory': 'Katta Sambol',
-      'supplier': 'MD (Mauby David)',
-    },
-    {
-      'name': 'String Hopper Flour 1kg',
-      'qty': 2,
-      'price': 1_099.90,
-      'department': 'Bakery & Flour',
-      'subDepartment': 'Flour & Batters',
-      'category': 'Flour & Batters',
-      'subCategory': 'Surface Cleaners',
-      'supplier': 'Motha',
-    },
-    {
-      'name': 'Kithul Treacle 350ml',
-      'qty': 88,
-      'price': 750.00,
-      'department': 'Sweets & Desserts',
-      'subDepartment': 'Sweets',
-      'category': 'Sweets',
-      'subCategory': 'Nuts',
-      'supplier': 'Maliban',
-    },
-  ];
+  List<Map<String, dynamic>> _items = [];
+  bool _isLoading = true;
+  String? _errorMessage;
+  String _resolvedLocation = '01';
+  String? _resolvedLocationDescription;
 
   // View By selection and dependent lists
   String _viewBy = 'Product Wise';
@@ -119,66 +25,17 @@ class _MyStockPageState extends State<MyStockPage> {
   int? _sortColumnIndex;
   bool _sortAscending = true;
 
-  final List<String> _departments = const [
-    'Staples & Rice',
-    'Spices & Condiments',
-    'Coconut Products',
-    'Tea & Beverages',
-    'Snacks & Short Eats',
-    'Sweets & Desserts',
-    'Bakery & Flour',
-    'Canned & Dry Fish',
-    'Fresh Produce',
-    'Dairy & Chilled',
-  ];
-  final List<String> _subDepartments = const [
-    'Samba Rice',
-    'Nadu Rice',
-    'Red Raw Rice',
-    'Ceylon Cinnamon',
-    'Ceylon Cloves',
-    'Black Pepper',
-    'Coconut Milk',
-    'Coconut Oil',
-    'Ceylon Tea',
-    'Maldive Fish',
-  ];
-  final List<String> _categories = const [
-    'Rice & Grains',
-    'Spices',
-    'Coconut Products',
-    'Tea',
-    'Curry Pastes & Mixes',
-    'Flour & Batters',
-    'Snacks',
-    'Sweets',
-    'Sambols & Chutneys',
-    'Canned & Dry Fish',
-  ];
-  final List<String> _subCategories = const [
-    'Nadu',
-    'Samba',
-    'Red Raw',
-    'Cinnamon',
-    'Cardamom',
-    'Cloves',
-    'Coconut Milk Powder',
-    'Desiccated Coconut',
-    'Ceylon Black Tea',
-    'Katta Sambol',
-  ];
-  final List<String> _suppliers = const [
-    'Cargills',
-    'Keells',
-    'Harischandra',
-    'Ruhunu Foods',
-    'MD (Mauby David)',
-    'Motha',
-    'Dilmah',
-    'Maliban',
-    'Munchee',
-    'Lanka Sathosa',
-  ];
+  List<String> _departments = [];
+  List<String> _subDepartments = [];
+  List<String> _categories = [];
+  List<String> _subCategories = [];
+  List<String> _suppliers = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStockData();
+  }
 
   @override
   void dispose() {
@@ -186,7 +43,97 @@ class _MyStockPageState extends State<MyStockPage> {
     super.dispose();
   }
 
-  // Removed _formatLkr; using plain number formatter for table rows
+  Future<void> _loadStockData() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final auth = Provider.of<AuthProvider>(context, listen: false);
+      final sm = auth.currentSalesman;
+      final rawLoc = (sm?.locationCode?.trim().isNotEmpty == true)
+          ? sm!.locationCode!.trim()
+          : (sm?.location?.trim().isNotEmpty == true ? sm!.location!.trim() : '01');
+
+      final res = await ApiService.fetchMyStock(
+        location: rawLoc,
+        salesmanCode: sm?.salesmanCode,
+      );
+
+      if (!mounted) return;
+
+      if (res['success'] == true && res['data'] is List) {
+        final rawList = res['data'] as List;
+        final List<Map<String, dynamic>> loaded = [];
+        final Set<String> depts = {};
+        final Set<String> subDepts = {};
+        final Set<String> cats = {};
+        final Set<String> subCats = {};
+        final Set<String> supps = {};
+
+        for (final row in rawList) {
+          if (row is! Map) continue;
+          final r = Map<String, dynamic>.from(row);
+          final code = (r['ProductCode'] ?? '').toString().trim();
+          final name = (r['ProductName'] ?? r['ProductCode'] ?? '').toString().trim();
+          final dept = (r['Department'] ?? '').toString().trim();
+          final subDept = (r['SubDepartment'] ?? '').toString().trim();
+          final cat = (r['Category'] ?? '').toString().trim();
+          final subCat = (r['SubCategory'] ?? '').toString().trim();
+          final supp = (r['Supplier'] ?? '').toString().trim();
+
+          if (dept.isNotEmpty && dept != 'General') depts.add(dept);
+          if (subDept.isNotEmpty && subDept != 'General') subDepts.add(subDept);
+          if (cat.isNotEmpty && cat != 'General') cats.add(cat);
+          if (subCat.isNotEmpty && subCat != 'General') subCats.add(subCat);
+          if (supp.isNotEmpty && supp != 'N/A') supps.add(supp);
+
+          loaded.add({
+            'idx': r['idx'],
+            'code': code,
+            'name': name.isNotEmpty ? name : code,
+            'qty': (r['StockQty'] as num?)?.toInt() ?? 0,
+            'price': (r['Price'] as num?)?.toDouble() ?? 0.0,
+            'costPrice': (r['CostPrice'] as num?)?.toDouble() ?? 0.0,
+            'wholeSalePrice': (r['WholeSalePrice'] as num?)?.toDouble() ?? 0.0,
+            'department': dept.isNotEmpty ? dept : 'General',
+            'subDepartment': subDept.isNotEmpty ? subDept : 'General',
+            'category': cat.isNotEmpty ? cat : 'General',
+            'subCategory': subCat.isNotEmpty ? subCat : 'General',
+            'supplier': supp.isNotEmpty ? supp : 'N/A',
+            'reOrderQty': (r['ReOrderQty'] as num?)?.toInt() ?? 0,
+            'reOrderLevel': (r['ReOrderLevel'] as num?)?.toInt() ?? 0,
+          });
+        }
+
+        setState(() {
+          _items = loaded;
+          _isLoading = false;
+          _errorMessage = null;
+          _resolvedLocation = (res['location'] ?? rawLoc).toString().trim();
+          _resolvedLocationDescription = (res['locationDescription'] ?? sm?.locationDescription)?.toString().trim();
+          _departments = depts.toList()..sort();
+          _subDepartments = subDepts.toList()..sort();
+          _categories = cats.toList()..sort();
+          _subCategories = subCats.toList()..sort();
+          _suppliers = supps.toList()..sort();
+        });
+      } else {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = res['error']?.toString() ?? 'Failed to load stock data';
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'Network error: $e';
+      });
+    }
+  }
 
   String _formatLkrPlain(num value) {
     final negative = value < 0;
@@ -233,7 +180,7 @@ class _MyStockPageState extends State<MyStockPage> {
         break;
       default:
         dataset = _items.map((e) => e['name'] as String).toList();
-        label = 'Search Products';
+        label = 'Search Products or Code';
     }
 
     return Autocomplete<String>(
@@ -262,6 +209,16 @@ class _MyStockPageState extends State<MyStockPage> {
           decoration: InputDecoration(
             labelText: label,
             prefixIcon: const Icon(Icons.search),
+            suffixIcon: _searchController.text.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(Icons.clear, size: 20),
+                    onPressed: () {
+                      _searchController.clear();
+                      controller.clear();
+                      setState(() {});
+                    },
+                  )
+                : null,
           ),
           onSubmitted: (_) => onFieldSubmitted(),
         );
@@ -327,9 +284,12 @@ class _MyStockPageState extends State<MyStockPage> {
                 option('Product Wise', Icons.inventory_2_rounded),
                 option('Department Wise', Icons.apartment_rounded),
                 option('Sub-Department Wise', Icons.account_tree_rounded),
-                option('Category Wise', Icons.category_rounded),
-                option('Sub Category Wise', Icons.dashboard_customize_rounded),
-                option('Supplier Wise', Icons.local_shipping_rounded),
+                if (_categories.isNotEmpty)
+                  option('Category Wise', Icons.category_rounded),
+                if (_subCategories.isNotEmpty)
+                  option('Sub Category Wise', Icons.dashboard_customize_rounded),
+                if (_suppliers.isNotEmpty)
+                  option('Supplier Wise', Icons.local_shipping_rounded),
                 const SizedBox(height: 8),
               ],
             ),
@@ -354,16 +314,22 @@ class _MyStockPageState extends State<MyStockPage> {
                 padding: const EdgeInsets.all(12),
                 child: Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
               ),
-              ...options.map((e) => ListTile(
-                    title: Text(e),
-                    onTap: () {
-                      setState(() => _chosenFilter = e);
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Selected: $e')),
-                      );
-                    },
-                  )),
+              if (options.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text('No options available', style: TextStyle(color: Colors.grey)),
+                )
+              else
+                ...options.map((e) => ListTile(
+                      title: Text(e),
+                      onTap: () {
+                        setState(() => _chosenFilter = e);
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Selected: $e')),
+                        );
+                      },
+                    )),
               const SizedBox(height: 8),
             ],
           ),
@@ -372,13 +338,112 @@ class _MyStockPageState extends State<MyStockPage> {
     );
   }
 
+  void _showProductDetails(Map<String, dynamic> item) {
+    final theme = Theme.of(context);
+    final qty = (item['qty'] as num?)?.toInt() ?? 0;
+    final price = (item['price'] as num?)?.toDouble() ?? 0.0;
+    final costPrice = (item['costPrice'] as num?)?.toDouble() ?? 0.0;
+    final wholeSale = (item['wholeSalePrice'] as num?)?.toDouble() ?? 0.0;
+    final inStock = qty > 0;
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    CircleAvatar(
+                      radius: 24,
+                      backgroundColor: inStock
+                          ? const Color(0xFF10B981).withValues(alpha: 0.15)
+                          : const Color(0xFFEF4444).withValues(alpha: 0.15),
+                      child: Icon(
+                        inStock ? Icons.check_circle_outline : Icons.warning_amber_rounded,
+                        color: inStock ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                        size: 26,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item['name'] ?? '',
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Code: ${item['code']}',
+                            style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 13),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const Divider(height: 24),
+                _detailRow('Assigned Location', '$_resolvedLocation${_resolvedLocationDescription != null ? " ($_resolvedLocationDescription)" : ""}'),
+                _detailRow('Current Stock Qty', '$qty units', isBold: true, valueColor: inStock ? const Color(0xFF10B981) : const Color(0xFFEF4444)),
+                _detailRow('Selling Price', 'Rs. ${_formatLkrPlain(price)}'),
+                if (costPrice > 0)
+                  _detailRow('Cost Price', 'Rs. ${_formatLkrPlain(costPrice)}'),
+                if (wholeSale > 0)
+                  _detailRow('Wholesale Price', 'Rs. ${_formatLkrPlain(wholeSale)}'),
+                if (item['department'] != null && item['department'] != 'General')
+                  _detailRow('Department', item['department']),
+                if (item['subDepartment'] != null && item['subDepartment'] != 'General')
+                  _detailRow('Sub-Department', item['subDepartment']),
+                if (item['supplier'] != null && item['supplier'] != 'N/A')
+                  _detailRow('Supplier', item['supplier']),
+                const SizedBox(height: 12),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _detailRow(String label, String value, {bool isBold = false, Color? valueColor}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(color: Colors.grey, fontSize: 13)),
+          Text(
+            value,
+            style: TextStyle(
+              fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
+              fontSize: 14,
+              color: valueColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final q = _searchController.text.trim().toLowerCase();
     final filtered = _items.where((e) {
+      final name = (e['name'] as String).toLowerCase();
+      final code = (e['code'] as String? ?? '').toLowerCase();
       final nameMatch = _viewBy == 'Product Wise'
-          ? (q.isEmpty || (e['name'] as String).toLowerCase().contains(q))
+          ? (q.isEmpty || name.contains(q) || code.contains(q))
           : true;
       final qty = e['qty'] as int;
       final stockMatch = _displayAll ? true : qty > 0;
@@ -406,187 +471,311 @@ class _MyStockPageState extends State<MyStockPage> {
       }
     }
 
+    final totalItemsInDb = _items.length;
+    final totalInStock = _items.where((e) => (e['qty'] as int) > 0).length;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('My Stock'),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _showViewBy,
-                    icon: const Icon(Icons.tune),
-                    label: Text(
-                      _viewBy,
-                      textAlign: TextAlign.justify,
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(48),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      side: BorderSide(
-                        color: Theme.of(context).colorScheme.outlineVariant,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: _viewBy == 'Product Wise'
-                        ? null
-                        : () {
-                            switch (_viewBy) {
-                              case 'Department Wise':
-                                _showSelectionPicker('Main Departments', _departments);
-                                break;
-                              case 'Sub-Department Wise':
-                                _showSelectionPicker('Sub Departments', _subDepartments);
-                                break;
-                              case 'Category Wise':
-                                _showSelectionPicker('Main Categories', _categories);
-                                break;
-                              case 'Sub Category Wise':
-                                _showSelectionPicker('Sub Categories', _subCategories);
-                                break;
-                              case 'Supplier Wise':
-                                _showSelectionPicker('Main Suppliers', _suppliers);
-                                break;
-                            }
-                          },
-                    icon: const Icon(Icons.list_alt),
-                    label: Text(() {
-                      switch (_viewBy) {
-                        case 'Department Wise':
-                          return _chosenFilter == null ? 'Main Departments' : _chosenFilter!;
-                        case 'Sub-Department Wise':
-                          return _chosenFilter == null ? 'Sub Departments' : _chosenFilter!;
-                        case 'Category Wise':
-                          return _chosenFilter == null ? 'Main Categories' : _chosenFilter!;
-                        case 'Sub Category Wise':
-                          return _chosenFilter == null ? 'Sub Categories' : _chosenFilter!;
-                        case 'Supplier Wise':
-                          return _chosenFilter == null ? 'Main Suppliers' : _chosenFilter!;
-                        default:
-                          return 'Select';
-                      }
-                    }(), textAlign: TextAlign.justify),
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size.fromHeight(48),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Center(
-              child: Container
-              (
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-                  boxShadow: const [
-                    BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 2)),
-                  ],
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Checkbox(
-                      value: _displayAll,
-                      visualDensity: VisualDensity.compact,
-                      onChanged: (v) => setState(() => _displayAll = v ?? false),
-                    ),
-                    const SizedBox(width: 6),
-                    const Text('Display All'),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 4),
-            _buildAdaptiveSearch(),
-            const SizedBox(height: 16),
-            Expanded(
-              child: Card(
-                elevation: 2,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: LayoutBuilder(
-                    builder: (context, box) {
-                      // Real-time width from the table container
-                      const double hMargin = 4;
-                      const double colSpacing = 12;
-                      const double stockW = 56;
-                      const double priceW = 84;
-                      final double available = box.maxWidth - (hMargin * 2) - (colSpacing * 2) - stockW - priceW;
-                      final double itemW = available.clamp(120.0, box.maxWidth);
-
-                      return Scrollbar(
-                        thumbVisibility: true,
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.vertical,
-                          child: DataTable(
-                            columnSpacing: colSpacing,
-                            headingRowHeight: 40,
-                            dataRowMinHeight: 38,
-                            dataRowMaxHeight: 46,
-                            columns: [
-                              DataColumn(
-                                label: const Text('Item'),
-                                onSort: (col, asc) => setState(() {
-                                  _sortColumnIndex = col;
-                                  _sortAscending = asc;
-                                }),
-                              ),
-                              DataColumn(
-                                numeric: true,
-                                label: const Text('Stock'),
-                                onSort: (col, asc) => setState(() {
-                                  _sortColumnIndex = col;
-                                  _sortAscending = asc;
-                                }),
-                              ),
-                              DataColumn(
-                                numeric: true,
-                                label: const Text('Price (Rs.)'),
-                                onSort: (col, asc) => setState(() {
-                                  _sortColumnIndex = col;
-                                  _sortAscending = asc;
-                                }),
-                              ),
-                            ],
-                            rows: _buildGroupedRows(
-                              context: context,
-                              theme: theme,
-                              rows: filtered,
-                              itemW: itemW,
-                              stockW: stockW,
-                              priceW: priceW,
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
+            const Text('My Stock'),
+            Text(
+              'Location: $_resolvedLocation${_resolvedLocationDescription != null && _resolvedLocationDescription!.isNotEmpty ? " ($_resolvedLocationDescription)" : ""}',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                fontSize: 12,
               ),
             ),
           ],
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded),
+            tooltip: 'Refresh Stock',
+            onPressed: _loadStockData,
+          ),
+        ],
       ),
+      body: _isLoading
+          ? const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Loading real-time stock...'),
+                ],
+              ),
+            )
+          : _errorMessage != null && _items.isEmpty
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.error_outline_rounded, color: Colors.red, size: 48),
+                        const SizedBox(height: 12),
+                        Text(
+                          _errorMessage!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton.icon(
+                          onPressed: _loadStockData,
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      // Location & Count Status Strip
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.primary.withValues(alpha: 0.06),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: theme.colorScheme.primary.withValues(alpha: 0.15),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.place_rounded, size: 16, color: Color(0xFF10B981)),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Loc: $_resolvedLocation',
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                ),
+                              ],
+                            ),
+                            Text(
+                              'In Stock: $totalInStock / Total: $totalItemsInDb',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: theme.colorScheme.onSurfaceVariant,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: _showViewBy,
+                              icon: const Icon(Icons.tune),
+                              label: Text(
+                                _viewBy,
+                                textAlign: TextAlign.justify,
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                minimumSize: const Size.fromHeight(48),
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                side: BorderSide(
+                                  color: Theme.of(context).colorScheme.outlineVariant,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: FilledButton.icon(
+                              onPressed: _viewBy == 'Product Wise'
+                                  ? null
+                                  : () {
+                                      switch (_viewBy) {
+                                        case 'Department Wise':
+                                          _showSelectionPicker('Main Departments', _departments);
+                                          break;
+                                        case 'Sub-Department Wise':
+                                          _showSelectionPicker('Sub Departments', _subDepartments);
+                                          break;
+                                        case 'Category Wise':
+                                          _showSelectionPicker('Main Categories', _categories);
+                                          break;
+                                        case 'Sub Category Wise':
+                                          _showSelectionPicker('Sub Categories', _subCategories);
+                                          break;
+                                        case 'Supplier Wise':
+                                          _showSelectionPicker('Main Suppliers', _suppliers);
+                                          break;
+                                      }
+                                    },
+                              icon: const Icon(Icons.list_alt),
+                              label: Text(() {
+                                switch (_viewBy) {
+                                  case 'Department Wise':
+                                    return _chosenFilter == null ? 'Main Departments' : _chosenFilter!;
+                                  case 'Sub-Department Wise':
+                                    return _chosenFilter == null ? 'Sub Departments' : _chosenFilter!;
+                                  case 'Category Wise':
+                                    return _chosenFilter == null ? 'Main Categories' : _chosenFilter!;
+                                  case 'Sub Category Wise':
+                                    return _chosenFilter == null ? 'Sub Categories' : _chosenFilter!;
+                                  case 'Supplier Wise':
+                                    return _chosenFilter == null ? 'Main Suppliers' : _chosenFilter!;
+                                  default:
+                                    return 'Select';
+                                }
+                              }(), textAlign: TextAlign.justify),
+                              style: FilledButton.styleFrom(
+                                minimumSize: const Size.fromHeight(48),
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Center(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+                            boxShadow: const [
+                              BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 2)),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Checkbox(
+                                value: _displayAll,
+                                visualDensity: VisualDensity.compact,
+                                onChanged: (v) => setState(() => _displayAll = v ?? false),
+                              ),
+                              const SizedBox(width: 6),
+                              const Text('Display All (Include 0 Stock)'),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      _buildAdaptiveSearch(),
+                      const SizedBox(height: 12),
+                      Expanded(
+                        child: RefreshIndicator(
+                          onRefresh: _loadStockData,
+                          child: filtered.isEmpty
+                              ? ListView(
+                                  children: [
+                                    const SizedBox(height: 60),
+                                    Center(
+                                      child: Column(
+                                        children: [
+                                          Icon(
+                                            Icons.inventory_2_outlined,
+                                            size: 64,
+                                            color: theme.colorScheme.outline,
+                                          ),
+                                          const SizedBox(height: 12),
+                                          Text(
+                                            _items.isEmpty
+                                                ? 'No products found for Location $_resolvedLocation'
+                                                : 'No items match your filter.\nTry enabling "Display All".',
+                                            textAlign: TextAlign.center,
+                                            style: TextStyle(
+                                              color: theme.colorScheme.onSurfaceVariant,
+                                              fontSize: 14,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : Card(
+                                  elevation: 2,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: LayoutBuilder(
+                                      builder: (context, box) {
+                                        // Real-time width from the table container
+                                        const double hMargin = 4;
+                                        const double colSpacing = 12;
+                                        const double stockW = 56;
+                                        const double priceW = 84;
+                                        final double available = box.maxWidth - (hMargin * 2) - (colSpacing * 2) - stockW - priceW;
+                                        final double itemW = available.clamp(120.0, box.maxWidth);
+
+                                        return Scrollbar(
+                                          thumbVisibility: true,
+                                          child: SingleChildScrollView(
+                                            physics: const AlwaysScrollableScrollPhysics(),
+                                            scrollDirection: Axis.vertical,
+                                            child: DataTable(
+                                              showCheckboxColumn: false,
+                                              columnSpacing: colSpacing,
+                                              headingRowHeight: 40,
+                                              dataRowMinHeight: 38,
+                                              dataRowMaxHeight: 46,
+                                              columns: [
+                                                DataColumn(
+                                                  label: const Text('Item'),
+                                                  onSort: (col, asc) => setState(() {
+                                                    _sortColumnIndex = col;
+                                                    _sortAscending = asc;
+                                                  }),
+                                                ),
+                                                DataColumn(
+                                                  numeric: true,
+                                                  label: const Text('Stock'),
+                                                  onSort: (col, asc) => setState(() {
+                                                    _sortColumnIndex = col;
+                                                    _sortAscending = asc;
+                                                  }),
+                                                ),
+                                                DataColumn(
+                                                  numeric: true,
+                                                  label: const Text('Price (Rs.)'),
+                                                  onSort: (col, asc) => setState(() {
+                                                    _sortColumnIndex = col;
+                                                    _sortAscending = asc;
+                                                  }),
+                                                ),
+                                              ],
+                                              rows: _buildGroupedRows(
+                                                context: context,
+                                                theme: theme,
+                                                rows: filtered,
+                                                itemW: itemW,
+                                                stockW: stockW,
+                                                priceW: priceW,
+                                              ),
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
     );
   }
 
@@ -637,6 +826,7 @@ class _MyStockPageState extends State<MyStockPage> {
       final inStock = qty > 0;
       final name = (it['name'] as String?) ?? '';
       return DataRow(
+        onSelectChanged: (_) => _showProductDetails(it),
         color: WidgetStateProperty.resolveWith(
           (_) => index.isEven ? theme.colorScheme.surface : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
         ),
@@ -648,7 +838,10 @@ class _MyStockPageState extends State<MyStockPage> {
               alignment: Alignment.centerRight,
               child: Text(
                 '$qty',
-                style: TextStyle(color: inStock ? theme.colorScheme.onSurface : const Color(0xFFEF4444)),
+                style: TextStyle(
+                  fontWeight: inStock ? FontWeight.w600 : FontWeight.normal,
+                  color: inStock ? theme.colorScheme.onSurface : const Color(0xFFEF4444),
+                ),
               ),
             ),
           )),
