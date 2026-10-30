@@ -7475,7 +7475,7 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
         'avgMasterCostPrice':
             (row['avgMasterCostPrice'] as num?)?.toDouble() ?? 0.0,
         'refCode': row['refCode']?.toString(),
-        'documentDate': documentDate.toIso8601String(),
+        'documentDate': DateFormat('yyyy-MM-dd').format(documentDate),
         'createdUser': userName,
       };
     }).toList();
@@ -7490,10 +7490,16 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
     final locaCode = _saleLocationCode ?? authProvider.currentSalesman?.location ?? '01';
     const costCenter = '000001';
     final tempDocNo = _getActiveTempDocNo();
+    final effectiveDate = _selectedDate ?? DateTime.now();
+    final documentDate = DateTime(
+      effectiveDate.year,
+      effectiveDate.month,
+      effectiveDate.day,
+    );
     final transactions = _rows.isEmpty
         ? <Map<String, dynamic>>[]
         : _buildTempTransactions(
-            documentDate: DateTime.now(),
+            documentDate: documentDate,
             locaCode: locaCode,
             userName: userName,
           );
@@ -7571,7 +7577,13 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
 
     try {
       final tempDocNo = _getActiveTempDocNo();
-      final documentDate = DateTime.now();
+      final effectiveDate = _selectedDate ?? DateTime.now();
+      final documentDate = DateTime(
+        effectiveDate.year,
+        effectiveDate.month,
+        effectiveDate.day,
+      );
+      final documentDateStr = DateFormat('yyyy-MM-dd').format(documentDate);
       final locaCode = _saleLocationCode ?? salesmanLocation ?? '01';
       // Cost center format: must match gen_documentno format (e.g., '000001' for Costcenter)
       final costCenter =
@@ -7879,7 +7891,7 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
         'costCenter': costCenter,
         'user_Name': userName,
         'address': _selectedCustomer!['address']?.toString(),
-        'documentDate': documentDate.toIso8601String(),
+        'documentDate': documentDateStr,
         'manualNo': _manualController.text,
         'reference': '',
         'paymentTerms': '',

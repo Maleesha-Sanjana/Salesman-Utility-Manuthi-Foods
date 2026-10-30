@@ -169,6 +169,27 @@ function normalizeCostCenter(value) {
   return raw;
 }
 
+function parseDateOnly(value) {
+  if (!value) {
+    const now = new Date();
+    return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+  }
+  if (value instanceof Date) {
+    return new Date(Date.UTC(value.getFullYear(), value.getMonth(), value.getDate()));
+  }
+  const str = value.toString().trim();
+  const match = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    return new Date(Date.UTC(parseInt(match[1], 10), parseInt(match[2], 10) - 1, parseInt(match[3], 10)));
+  }
+  const parsed = new Date(str);
+  if (!isNaN(parsed.getTime())) {
+    return new Date(Date.UTC(parsed.getFullYear(), parsed.getMonth(), parsed.getDate()));
+  }
+  const fallback = new Date();
+  return new Date(Date.UTC(fallback.getFullYear(), fallback.getMonth(), fallback.getDate()));
+}
+
 
 async function insertSalesmanPlaceCheckIn({
   salesmanCode,
@@ -4477,7 +4498,7 @@ app.post('/api/sales-order/post', async (req, res) => {
             .input('avgVat', sql.Decimal(10, 3), txn.avgVat || 0)
             .input('avgMasterCostPrice', sql.Decimal(10, 3), txn.avgMasterCostPrice || 0)
             .input('refCode', sql.VarChar(50), txn.refCode || null)
-            .input('documentDate', sql.DateTime, (documentDate && !isNaN(new Date(documentDate).getTime())) ? new Date(documentDate) : new Date())
+            .input('documentDate', sql.DateTime, parseDateOnly(documentDate))
             .input('createdDate', sql.DateTime, new Date())
             .input('createdUser', sql.VarChar(50), finalUserName)
             .query(`
@@ -4496,7 +4517,7 @@ app.post('/api/sales-order/post', async (req, res) => {
                 @discAmount, @amount, @stockLoca, @tax, @serialNo, @warrantyPeriod,
                 @phase, @periodDays, @isBatch, @isExpiry, @isSemi, @isAuthority, @adjustment,
                 @avgCostPrice, @avgDiscount, @avgOther, @avgVat, @avgMasterCostPrice,
-                @refCode, @documentDate, @createdDate, @createdUser
+                @refCode, CASE WHEN @documentDate IS NOT NULL THEN CAST(@documentDate AS DATE) ELSE NULL END, @createdDate, @createdUser
               )
             `);
         }
@@ -5716,7 +5737,7 @@ app.post('/api/invoice/temp-transactions', async (req, res) => {
           .input('avgVat', sql.Decimal(10, 3), txn.avgVat || 0)
           .input('avgMasterCostPrice', sql.Decimal(10, 3), txn.avgMasterCostPrice || 0)
           .input('refCode', sql.VarChar(50), txn.refCode || null)
-          .input('documentDate', sql.DateTime, (txn.documentDate && !isNaN(new Date(txn.documentDate).getTime())) ? new Date(txn.documentDate) : null)
+          .input('documentDate', sql.DateTime, txn.documentDate ? parseDateOnly(txn.documentDate) : null)
           .input('createdDate', sql.DateTime, new Date())
           .input('createdUser', sql.VarChar(50), (txn.createdUser || '').toString().substring(0, 50))
           .query(`
@@ -5735,7 +5756,7 @@ app.post('/api/invoice/temp-transactions', async (req, res) => {
               @discAmount, @amount, @stockLoca, @tax, @serialNo, @warrantyPeriod,
               @phase, @periodDays, @isBatch, @isExpiry, @isSemi, @isAuthority, @adjustment,
               @avgCostPrice, @avgDiscount, @avgOther, @avgVat, @avgMasterCostPrice,
-              @refCode, @documentDate, @createdDate, @createdUser
+              @refCode, CASE WHEN @documentDate IS NOT NULL THEN CAST(@documentDate AS DATE) ELSE NULL END, @createdDate, @createdUser
             )
           `);
       }
@@ -6122,7 +6143,7 @@ app.post('/api/invoice/post', async (req, res) => {
     request.input('p_TempDocNo', sql.VarChar(20), tempDocNo);
     request.input('p_OrgDocNo', sql.VarChar(20), generatedOrgDocNo.substring(0, 12));
     request.input('p_TourCode', sql.VarChar(20), (tourCode || '').substring(0, 20));
-    request.input('p_DocumentDate', sql.DateTime, documentDate ? new Date(documentDate) : new Date());
+    request.input('p_DocumentDate', sql.DateTime, parseDateOnly(documentDate));
     request.input('p_LocaCode', sql.VarChar(5), finalLocaCode);
     request.input('p_ManualNo', sql.VarChar(20), (manualNo || '').substring(0, 15));
     request.input('p_Reference', sql.VarChar(30), (reference || '').substring(0, 30));
@@ -6158,7 +6179,7 @@ app.post('/api/invoice/post', async (req, res) => {
     request.input('p_Dispatch', sql.VarChar(20), (dispatch || '').substring(0, 15));
     request.input('p_TempCreditAmt', sql.Decimal(10, 3), tempCreditAmt || 0);
     request.input('p_RoudAmt', sql.Decimal(10, 3), roudAmt || 0);
-    request.input('p_PODate', sql.DateTime, poDate ? new Date(poDate) : null);
+    request.input('p_PODate', sql.DateTime, poDate ? parseDateOnly(poDate) : null);
     request.input('p_Currancy', sql.VarChar(20), (currancy || 'LKR').substring(0, 3));
     request.input('p_User_Name', sql.VarChar(50), (user_Name || '').substring(0, 15));
 
@@ -6179,7 +6200,7 @@ app.post('/api/invoice/post', async (req, res) => {
           @p_TempDocNo=@p_TempDocNo,
           @p_OrgDocNo=@p_OrgDocNo,
           @p_TourCode=@p_TourCode,
-          @p_DocumentDate=@p_DocumentDate,
+          @p_DocumentDate=CAST(@p_DocumentDate AS DATE),
           @p_LocaCode=@p_LocaCode,
           @p_ManualNo=@p_ManualNo,
           @p_Reference=@p_Reference,
@@ -6215,7 +6236,7 @@ app.post('/api/invoice/post', async (req, res) => {
           @p_Dispatch=@p_Dispatch,
           @p_TempCreditAmt=@p_TempCreditAmt,
           @p_RoudAmt=@p_RoudAmt,
-          @p_PODate=@p_PODate,
+          @p_PODate=CASE WHEN @p_PODate IS NOT NULL THEN CAST(@p_PODate AS DATE) ELSE NULL END,
           @p_Currancy=@p_Currancy,
           @p_User_Name=@p_User_Name;
         DBCC TRACEOFF(460);
