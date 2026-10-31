@@ -6190,6 +6190,10 @@ app.post('/api/invoice/post', async (req, res) => {
     const execSql = `
       BEGIN TRY
         DBCC TRACEON(460);
+        SET @p_DocumentDate = CAST(@p_DocumentDate AS DATE);
+        IF @p_PODate IS NOT NULL
+          SET @p_PODate = CAST(@p_PODate AS DATE);
+
         EXEC inv_USp_InvoicePostProcess
           @p_DocAction=@p_DocAction,
           @p_CustomerCode=@p_CustomerCode,
@@ -6200,7 +6204,7 @@ app.post('/api/invoice/post', async (req, res) => {
           @p_TempDocNo=@p_TempDocNo,
           @p_OrgDocNo=@p_OrgDocNo,
           @p_TourCode=@p_TourCode,
-          @p_DocumentDate=CAST(@p_DocumentDate AS DATE),
+          @p_DocumentDate=@p_DocumentDate,
           @p_LocaCode=@p_LocaCode,
           @p_ManualNo=@p_ManualNo,
           @p_Reference=@p_Reference,
@@ -6236,7 +6240,7 @@ app.post('/api/invoice/post', async (req, res) => {
           @p_Dispatch=@p_Dispatch,
           @p_TempCreditAmt=@p_TempCreditAmt,
           @p_RoudAmt=@p_RoudAmt,
-          @p_PODate=CASE WHEN @p_PODate IS NOT NULL THEN CAST(@p_PODate AS DATE) ELSE NULL END,
+          @p_PODate=@p_PODate,
           @p_Currancy=@p_Currancy,
           @p_User_Name=@p_User_Name;
         DBCC TRACEOFF(460);

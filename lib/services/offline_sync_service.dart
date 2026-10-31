@@ -811,10 +811,20 @@ class OfflineSyncService {
 
       await _writeRecords(_pendingInvoicesKey, remaining);
       _notifyQueueChanged();
+
+      String? failureMessage;
+      if (failed > 0 && remaining.isNotEmpty) {
+        final lastErr = remaining.last['lastError']?.toString();
+        if (lastErr != null && lastErr.isNotEmpty) {
+          failureMessage = 'Sync failed: ${lastErr.replaceAll('Exception: ', '')}';
+        }
+      }
+
       return OfflineSyncResult(
         synced: synced,
         failed: failed,
         remaining: remaining.length,
+        message: failureMessage,
       );
     } finally {
       _isSyncingInvoices = false;

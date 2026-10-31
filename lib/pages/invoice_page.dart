@@ -351,6 +351,8 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
             result.message ??
                 'Invoice sync: ${result.synced} synced, ${result.failed} failed, ${result.remaining} pending.',
           ),
+          backgroundColor: result.failed > 0 ? Colors.red.shade800 : Colors.green,
+          duration: Duration(seconds: result.failed > 0 ? 6 : 3),
         ),
       );
     } finally {
@@ -8129,11 +8131,15 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
         });
         await _clearActiveDraft();
 
+        final cleanError = e.toString().replaceAll('Exception: ', '').trim();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Offline area. Invoice $localDocNo saved locally.'),
+            content: Text('Failed to post ($cleanError). Saved to sync: $localDocNo'),
+            backgroundColor: Colors.orange.shade800,
+            duration: const Duration(seconds: 5),
             action: SnackBarAction(
               label: 'Sync Now',
+              textColor: Colors.white,
               onPressed: _syncPendingInvoices,
             ),
           ),
