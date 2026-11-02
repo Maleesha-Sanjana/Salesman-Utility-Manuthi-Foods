@@ -15,19 +15,19 @@ class ApiService {
   // LOCAL DEV (simulator / Mac backend): uncomment the localhost pair below
   // and comment out the production pair.
   //
-  //static const String primaryBaseUrl = 'http://localhost:3000/api';
-  //static const String fallbackBaseUrl = 'http://localhost:3000/api';
+  static const String primaryBaseUrl = 'http://localhost:3000/api';
+  static const String fallbackBaseUrl = 'http://localhost:3000/api';
   //
   // PRODUCTION (static IP first, then LAN fallback):
   // ---------------------------------------------------------------------------
 
   /// Public / static IP — tried first.
-  static const String primaryBaseUrl =
-      'http://38.247.130.159:3000/api'; //Manuthi Foods
+  //static const String primaryBaseUrl =
+  //  'http://38.247.130.159:3000/api'; //Manuthi Foods
 
   /// LAN fallback — used when primary is unreachable.
-  static const String fallbackBaseUrl =
-      'http://38.247.130.159:3000/api'; //Manuthi Foods
+  //static const String fallbackBaseUrl =
+  //  'http://38.247.130.159:3000/api'; //Manuthi Foods
 
   static const String _offlineProductsKey = 'offline_products_no_images';
   static const String _cachedCustomersKey = 'cached_customers_list';
@@ -1684,6 +1684,121 @@ class ApiService {
       debugPrint('Error inserting temp payments: $e');
       rethrow;
     }
+  }
+
+  static List<Map<String, dynamic>>? _cachedBanks;
+  static final Map<String, List<Map<String, dynamic>>> _cachedBranchesByBank = {};
+
+  // Fetch all banks from gen_bank
+  static Future<List<Map<String, dynamic>>> getBanks({
+    bool forceRefresh = false,
+  }) async {
+    if (!forceRefresh && _cachedBanks != null && _cachedBanks!.isNotEmpty) {
+      return List<Map<String, dynamic>>.from(_cachedBanks!);
+    }
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (!forceRefresh) {
+        final cachedString = prefs.getString('cached_gen_banks');
+        if (cachedString != null && cachedString.isNotEmpty) {
+          try {
+            final decoded = json.decode(cachedString) as List;
+            _cachedBanks = decoded
+                .map((e) => Map<String, dynamic>.from(e as Map))
+                .toList();
+            _refreshBanksInBackground(prefs);
+            return List<Map<String, dynamic>>.from(_cachedBanks!);
+          } catch (_) {}
+        }
+      }
+
+      final response = await _httpGet('/banks');
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['success'] == true && data['banks'] is List) {
+          final banks = (data['banks'] as List)
+              .map((e) => Map<String, dynamic>.from(e as Map))
+              .toList();
+          _cachedBanks = banks;
+          await prefs.setString('cached_gen_banks', json.encode(banks));
+          return List<Map<String, dynamic>>.from(banks);
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ Error fetching banks: $e');
+    }
+    return _cachedBanks != null
+        ? List<Map<String, dynamic>>.from(_cachedBanks!)
+        : [];
+  }
+
+  static void _refreshBanksInBackground(SharedPreferences prefs) {
+    _httpGet('/banks').then((res) {
+      if (res.statusCode == 200) {
+        final data = json.decode(res.body);
+        if (data['success'] == true && data['banks'] is List) {
+          final banks = (data['banks'] as List)
+              .map((e) => Map<String, dynamic>.from(e as Map))
+              .toList();
+          _cachedBanks = banks;
+          prefs.setString('cached_gen_banks', json.encode(banks));
+        }
+      }
+    }).catchError((_) {});
+  }
+
+  // Fetch branches from gen_bankbranch (filtered by bankCode)
+  static Future<List<Map<String, dynamic>>> getBankBranches({
+    required String bankCode,
+    bool forceRefresh = false,
+  }) async {
+    final cleanBankCode = bankCode.trim();
+    if (cleanBankCode.isEmpty) return [];
+
+    if (!forceRefresh && _cachedBranchesByBank.containsKey(cleanBankCode)) {
+      return List<Map<String, dynamic>>.from(
+        _cachedBranchesByBank[cleanBankCode]!,
+      );
+    }
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cacheKey = 'cached_branches_$cleanBankCode';
+      if (!forceRefresh) {
+        final cachedString = prefs.getString(cacheKey);
+        if (cachedString != null && cachedString.isNotEmpty) {
+          try {
+            final decoded = json.decode(cachedString) as List;
+            final branches = decoded
+                .map((e) => Map<String, dynamic>.from(e as Map))
+                .toList();
+            _cachedBranchesByBank[cleanBankCode] = branches;
+            return List<Map<String, dynamic>>.from(branches);
+          } catch (_) {}
+        }
+      }
+
+      final response = await _httpGet(
+        '/bank-branches?bankCode=${Uri.encodeComponent(cleanBankCode)}',
+      );
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['success'] == true && data['branches'] is List) {
+          final branches = (data['branches'] as List)
+              .map((e) => Map<String, dynamic>.from(e as Map))
+              .toList();
+          _cachedBranchesByBank[cleanBankCode] = branches;
+          await prefs.setString(cacheKey, json.encode(branches));
+          return List<Map<String, dynamic>>.from(branches);
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ Error fetching branches for bank $cleanBankCode: $e');
+    }
+    return _cachedBranchesByBank[cleanBankCode] != null
+        ? List<Map<String, dynamic>>.from(_cachedBranchesByBank[cleanBankCode]!)
+        : [];
   }
 
   // Post invoice using stored procedure

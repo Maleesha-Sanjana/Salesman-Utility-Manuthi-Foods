@@ -5823,6 +5823,70 @@ app.get('/api/payment-modes', async (req, res) => {
   }
 });
 
+// Get list of banks from gen_bank
+app.get('/api/banks', async (req, res) => {
+  try {
+    if (!pool) {
+      return res.status(503).json({ success: false, error: 'Database not connected' });
+    }
+
+    const result = await pool.request().query(`
+      SELECT 
+        RTRIM(BankCode) AS BankCode, 
+        RTRIM(BankName) AS BankName 
+      FROM gen_bank 
+      WHERE BankName IS NOT NULL AND RTRIM(BankName) <> ''
+      ORDER BY BankName ASC
+    `);
+
+    res.json({
+      success: true,
+      banks: result.recordset
+    });
+  } catch (err) {
+    console.error('❌ Error fetching banks from gen_bank:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Get list of bank branches from gen_bankbranch (optionally filtered by bankCode)
+app.get('/api/bank-branches', async (req, res) => {
+  try {
+    if (!pool) {
+      return res.status(503).json({ success: false, error: 'Database not connected' });
+    }
+
+    const { bankCode } = req.query;
+    const request = pool.request();
+
+    let query = `
+      SELECT 
+        RTRIM(BranchCode) AS BranchCode, 
+        RTRIM(BankCode) AS BankCode, 
+        RTRIM(BranchName) AS BranchName 
+      FROM gen_bankbranch 
+      WHERE BranchName IS NOT NULL AND RTRIM(BranchName) <> ''
+    `;
+
+    if (bankCode && bankCode.toString().trim().length > 0) {
+      request.input('bankCode', sql.VarChar(20), bankCode.toString().trim());
+      query += ` AND RTRIM(BankCode) = @bankCode`;
+    }
+
+    query += ` ORDER BY BranchName ASC`;
+
+    const result = await request.query(query);
+
+    res.json({
+      success: true,
+      branches: result.recordset
+    });
+  } catch (err) {
+    console.error('❌ Error fetching bank branches from gen_bankbranch:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Insert payment items into inv_temppayment (required before calling stored procedure)
 app.post('/api/invoice/temp-payments', async (req, res) => {
   try {
@@ -5849,31 +5913,73 @@ app.post('/api/invoice/temp-payments', async (req, res) => {
       .input('locaCode', sql.VarChar(5), finalLocaCode)
       .query('DELETE FROM inv_temppayment WHERE TempDocNo = @tempDocNo AND LocaCode = @locaCode');
 
+    // Helper to get ledger details based on payment code
+    const getPaymentLedgerInfo = (paymentCode) => {
+      const code = (paymentCode || '001').toString().trim();
+      switch (code) {
+        case '001': // Cash
+          return {
+            ledgerCode1: '1020040003',
+            doubleEntery1: 'DR',
+            ledgerCode2: '4010010001',
+            doubleEntery2: ''
+          };
+        case '007': // Cheque
+          return {
+            ledgerCode1: '1020040005',
+            doubleEntery1: 'DR',
+            ledgerCode2: '4010010001',
+            doubleEntery2: ''
+          };
+        case '006': // Credit
+          return {
+            ledgerCode1: '1020020001',
+            doubleEntery1: 'DR',
+            ledgerCode2: '4010010002',
+            doubleEntery2: ''
+          };
+        default:
+          return {
+            ledgerCode1: '1020040003',
+            doubleEntery1: 'DR',
+            ledgerCode2: '4010010001',
+            doubleEntery2: ''
+          };
+      }
+    };
+
     // Insert payments
     for (const payment of payments) {
+      const pCode = (payment.paymentCode || '001').toString().trim();
+      const defaultLedger = getPaymentLedgerInfo(pCode);
+      const ledgerCode1 = payment.ledgerCode1 || defaultLedger.ledgerCode1;
+      const doubleEntery1 = payment.doubleEntery1 || payment.doubleEntry1 || defaultLedger.doubleEntery1;
+      const ledgerCode2 = payment.ledgerCode2 || defaultLedger.ledgerCode2;
+      const doubleEntery2 = payment.doubleEntery2 || payment.doubleEntry2 || '';
+
       await pool.request()
         .input('tempDocNo', sql.VarChar(20), tempDocNo)
         .input('locaCode', sql.VarChar(5), finalLocaCode)
         .input('iid', sql.VarChar(5), payment.iid || 'IRE')
-        .input('paymentCode', sql.VarChar(20), payment.paymentCode || '001')
+        .input('paymentCode', sql.VarChar(20), pCode)
         .input('amount', sql.Decimal(10, 3), payment.amount || 0)
         .input('cardChequeNo', sql.VarChar(50), (payment.cardChequeNo || '').toString().substring(0, 20))
         .input('currencyCode', sql.VarChar(10), payment.currencyCode || 'LKR')
         .input('creditPeriod', sql.Int, payment.creditPeriod || 0)
-        .input('bankCode', sql.VarChar(20), (payment.bankCode || '').toString().substring(0, 10))
-        .input('branchCode', sql.VarChar(20), (payment.branchCode || '').toString().substring(0, 10))
-        .input('bankName', sql.VarChar(100), (payment.bankName || '').toString().substring(0, 30))
-        .input('branchName', sql.VarChar(100), (payment.branchName || '').toString().substring(0, 30))
+        .input('bankCode', sql.VarChar(20), (payment.bankCode || '').toString().trim().substring(0, 20))
+        .input('branchCode', sql.VarChar(20), (payment.branchCode || '').toString().trim().substring(0, 20))
+        .input('bankName', sql.VarChar(100), (payment.bankName || payment.bank || '').toString().trim().substring(0, 50))
+        .input('branchName', sql.VarChar(100), (payment.branchName || payment.branch || '').toString().trim().substring(0, 50))
         .input(
           'chequeDate',
           sql.DateTime,
           payment.chequeDate ? new Date(payment.chequeDate) : null
         )
         .input('terminalId', sql.VarChar(15), payment.terminalId || '')
-        .input('ledgerCode1', sql.VarChar(15), payment.ledgerCode1 || '')
-        .input('doubleEntery1', sql.VarChar(5), payment.doubleEntery1 || '')
-        .input('ledgerCode2', sql.VarChar(15), payment.ledgerCode2 || '')
-        .input('doubleEntery2', sql.VarChar(5), payment.doubleEntery2 || '')
+        .input('ledgerCode1', sql.VarChar(15), (ledgerCode1 || '').substring(0, 15))
+        .input('doubleEntery1', sql.VarChar(5), (doubleEntery1 || '').substring(0, 5))
+        .input('ledgerCode2', sql.VarChar(15), (ledgerCode2 || '').substring(0, 15))
+        .input('doubleEntery2', sql.VarChar(5), (doubleEntery2 || '').substring(0, 5))
         .query(`
           INSERT INTO inv_temppayment (
             TempDocNo, LocaCode, Iid, PaymentCode, Amount, CardChequeNo, CurrencyCode,
@@ -6032,6 +6138,7 @@ app.post('/api/invoice/post', async (req, res) => {
       }
 
       // Search salesman location in gen_salesman and compare to gen_location LocationDescription column for StockLoca
+      let matchedSalesmanStockLoca = '';
       if (salesmanCode) {
         try {
           const smLocMatch = await new sql.Request(transaction)
@@ -6041,7 +6148,7 @@ app.post('/api/invoice/post', async (req, res) => {
                 s.Location AS SalesmanLocation,
                 l.LocationCode
               FROM gen_salesman s
-              INNER JOIN gen_location l 
+              LEFT JOIN gen_location l 
                 ON (LTRIM(RTRIM(LOWER(s.Location))) = LTRIM(RTRIM(LOWER(l.LocationDescription)))
                     OR LTRIM(RTRIM(LOWER(s.Location))) = LTRIM(RTRIM(LOWER(l.LocationCode))))
               WHERE (s.SalesmanCode = @smCode OR s.userName = @smCode)
@@ -6049,19 +6156,22 @@ app.post('/api/invoice/post', async (req, res) => {
                 AND LTRIM(RTRIM(s.Location)) <> ''
             `);
 
-          if (smLocMatch.recordset.length > 0 && smLocMatch.recordset[0].LocationCode) {
-            const matchedStockLoca = normalizeLocaCode(smLocMatch.recordset[0].LocationCode);
-            const smLocName = smLocMatch.recordset[0].SalesmanLocation;
-            console.log(`📦 Salesman ${salesmanCode} location "${smLocName}" matched gen_location LocationCode: ${matchedStockLoca} -> updating StockLoca for stock reducing`);
+          if (smLocMatch.recordset.length > 0) {
+            const rawLoc = smLocMatch.recordset[0].LocationCode || smLocMatch.recordset[0].SalesmanLocation;
+            if (rawLoc) {
+              matchedSalesmanStockLoca = normalizeLocaCode(rawLoc);
+              const smLocName = smLocMatch.recordset[0].SalesmanLocation;
+              console.log(`📦 Salesman ${salesmanCode} location "${smLocName}" resolved to stock location: ${matchedSalesmanStockLoca} -> updating StockLoca for stock reducing`);
 
-            await new sql.Request(transaction)
-              .input('tempDocNo', sql.VarChar(20), tempDocNo)
-              .input('stockLoca', sql.VarChar(5), matchedStockLoca)
-              .query(`
-                UPDATE inv_temptransaction 
-                SET StockLoca = @stockLoca 
-                WHERE TempDocNo = @tempDocNo;
-              `);
+              await new sql.Request(transaction)
+                .input('tempDocNo', sql.VarChar(20), tempDocNo)
+                .input('stockLoca', sql.VarChar(5), matchedSalesmanStockLoca)
+                .query(`
+                  UPDATE inv_temptransaction 
+                  SET StockLoca = @stockLoca 
+                  WHERE TempDocNo = @tempDocNo;
+                `);
+            }
           }
         } catch (smLocErr) {
           console.warn('⚠️ Error checking salesman location against gen_location for StockLoca:', smLocErr.message);
@@ -6142,7 +6252,9 @@ app.post('/api/invoice/post', async (req, res) => {
     request.input('p_Iid', sql.VarChar(5), finalIid);
     request.input('p_TempDocNo', sql.VarChar(20), tempDocNo);
     request.input('p_OrgDocNo', sql.VarChar(20), generatedOrgDocNo.substring(0, 12));
-    request.input('p_TourCode', sql.VarChar(20), (tourCode || '').substring(0, 20));
+    const finalTourCode = (tourCode || req.body.stockLoca || matchedSalesmanStockLoca || '').toString().trim();
+    console.log(`📍 Passing @p_TourCode (salesman stock reducing location): "${finalTourCode}" to inv_USp_InvoicePostProcess`);
+    request.input('p_TourCode', sql.VarChar(20), finalTourCode.substring(0, 20));
     request.input('p_DocumentDate', sql.DateTime, parseDateOnly(documentDate));
     request.input('p_LocaCode', sql.VarChar(5), finalLocaCode);
     request.input('p_ManualNo', sql.VarChar(20), (manualNo || '').substring(0, 15));
@@ -6156,12 +6268,17 @@ app.post('/api/invoice/post', async (req, res) => {
     request.input('p_DiscAmount', sql.Decimal(10, 3), discAmount || 0);
     request.input('p_TaxPer', sql.Decimal(10, 3), taxPer || 0);
     request.input('p_TaxAmount', sql.Decimal(10, 3), taxAmount || 0);
+    const finalLedgerCode1 = ledgerCode1 || '1020040003';
+    const finalDoubleEntery1 = doubleEntery1 || 'DR';
+    const finalLedgerCode2 = ledgerCode2 || '4010010001';
+    const finalDoubleEntery2 = doubleEntery2 || '';
+
     request.input('p_NetAmount', sql.Decimal(10, 3), netAmount || grossAmount || 0);
-    request.input('p_LedgerCode1', sql.VarChar(15), (ledgerCode1 || '').substring(0, 15));
-    request.input('p_DoubleEntery1', sql.VarChar(5), (doubleEntery1 || '').substring(0, 5));
-    request.input('p_LedgerCode2', sql.VarChar(15), (ledgerCode2 || '').substring(0, 15));
+    request.input('p_LedgerCode1', sql.VarChar(15), finalLedgerCode1.substring(0, 15));
+    request.input('p_DoubleEntery1', sql.VarChar(5), finalDoubleEntery1.substring(0, 5));
+    request.input('p_LedgerCode2', sql.VarChar(15), finalLedgerCode2.substring(0, 15));
     request.input('p_LedgerCode3', sql.VarChar(15), (ledgerCode3 || '').substring(0, 15));
-    request.input('p_DoubleEntery2', sql.VarChar(5), (doubleEntery2 || '').substring(0, 5));
+    request.input('p_DoubleEntery2', sql.VarChar(5), finalDoubleEntery2.substring(0, 5));
     request.input('p_DoubleEntery3', sql.VarChar(5), (doubleEntery3 || '').substring(0, 5));
     request.input('p_CostCenter', sql.VarChar(10), finalCostCenter);
     request.input('p_JobNumber', sql.VarChar(10), (jobNumber || '').substring(0, 10));
