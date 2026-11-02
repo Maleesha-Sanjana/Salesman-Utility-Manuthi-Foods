@@ -137,7 +137,9 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
       final code = (loc['LocationCode'] ?? '').toString().trim();
       if (desc.isNotEmpty && desc.toLowerCase() == smLocName.toLowerCase()) {
         _stockLocationCode = code;
-        debugPrint('📦 Salesman location "$smLocName" matched LocationDescription "$desc" -> LocationCode: $code for stock reducing');
+        debugPrint(
+          '📦 Salesman location "$smLocName" matched LocationDescription "$desc" -> LocationCode: $code for stock reducing',
+        );
         return code;
       }
     }
@@ -147,7 +149,9 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
       final code = (loc['LocationCode'] ?? '').toString().trim();
       if (code.isNotEmpty && code.toLowerCase() == smLocName.toLowerCase()) {
         _stockLocationCode = code;
-        debugPrint('📦 Salesman location "$smLocName" directly matched LocationCode: $code for stock reducing');
+        debugPrint(
+          '📦 Salesman location "$smLocName" directly matched LocationCode: $code for stock reducing',
+        );
         return code;
       }
     }
@@ -167,9 +171,10 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
         (c) => (c['code'] ?? c['CustomerCode'])?.toString() == code,
       );
       if (custMatch.isNotEmpty) {
-        rawLoc = (custMatch.first['location'] ?? custMatch.first['Location'] ?? '')
-            .toString()
-            .trim();
+        rawLoc =
+            (custMatch.first['location'] ?? custMatch.first['Location'] ?? '')
+                .toString()
+                .trim();
       }
     }
 
@@ -186,7 +191,9 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
       try {
         _locations = await ApiService.getLocations();
       } catch (e) {
-        debugPrint('⚠️ Error fetching locations in _resolveSaleLocationForCustomer: $e');
+        debugPrint(
+          '⚠️ Error fetching locations in _resolveSaleLocationForCustomer: $e',
+        );
       }
     }
 
@@ -197,7 +204,9 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
       final code = (loc['LocationCode'] ?? '').toString().trim();
       if (desc.isNotEmpty && desc.toLowerCase() == rawLoc.toLowerCase()) {
         matchedCode = code;
-        debugPrint('📍 Customer location "$rawLoc" matched LocationDescription "$desc" -> LocationCode: $code');
+        debugPrint(
+          '📍 Customer location "$rawLoc" matched LocationDescription "$desc" -> LocationCode: $code',
+        );
         break;
       }
     }
@@ -208,7 +217,9 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
         final code = (loc['LocationCode'] ?? '').toString().trim();
         if (code.isNotEmpty && code.toLowerCase() == rawLoc.toLowerCase()) {
           matchedCode = code;
-          debugPrint('📍 Customer location "$rawLoc" directly matched LocationCode: $code');
+          debugPrint(
+            '📍 Customer location "$rawLoc" directly matched LocationCode: $code',
+          );
           break;
         }
       }
@@ -225,7 +236,9 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
         }
       });
     }
-    debugPrint('📍 Sale location resolved to: $_saleLocationCode (raw="$rawLoc", default="$defaultLoca")');
+    debugPrint(
+      '📍 Sale location resolved to: $_saleLocationCode (raw="$rawLoc", default="$defaultLoca")',
+    );
 
     // Re-sync UI rows to temp transactions with new location code if rows exist
     if (_rows.isNotEmpty) {
@@ -239,31 +252,35 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
       if (!mounted) return;
       if (_products.isEmpty) {
         ApiService.getProductsForInvoiceCacheFirst(
-          onBackgroundUpdate: (fresh) {
-            if (mounted && fresh.isNotEmpty) {
-              setState(() => _products = fresh);
-            }
-          },
-        ).then((cached) {
-          if (mounted && cached.isNotEmpty && _products.isEmpty) {
-            setState(() => _products = cached);
-          }
-        }).catchError((_) {});
+              onBackgroundUpdate: (fresh) {
+                if (mounted && fresh.isNotEmpty) {
+                  setState(() => _products = fresh);
+                }
+              },
+            )
+            .then((cached) {
+              if (mounted && cached.isNotEmpty && _products.isEmpty) {
+                setState(() => _products = cached);
+              }
+            })
+            .catchError((_) {});
       }
       if (_customers.isEmpty) {
         final auth = Provider.of<AuthProvider>(context, listen: false);
         OfflineSyncService.getCustomersForSelection(
-          salesRepCode: auth.isSuper ? '' : auth.salesmanCode,
-          onBackgroundUpdate: (fresh) {
-            if (mounted && fresh.isNotEmpty) {
-              setState(() => _customers = fresh);
-            }
-          },
-        ).then((cached) {
-          if (mounted && cached.isNotEmpty && _customers.isEmpty) {
-            setState(() => _customers = cached);
-          }
-        }).catchError((_) {});
+              salesRepCode: auth.isSuper ? '' : auth.salesmanCode,
+              onBackgroundUpdate: (fresh) {
+                if (mounted && fresh.isNotEmpty) {
+                  setState(() => _customers = fresh);
+                }
+              },
+            )
+            .then((cached) {
+              if (mounted && cached.isNotEmpty && _customers.isEmpty) {
+                setState(() => _customers = cached);
+              }
+            })
+            .catchError((_) {});
       }
     });
   }
@@ -279,11 +296,13 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
     }
 
     try {
-      final customerCode = _selectedCustomer!['code'] ?? _selectedCustomer!['id'] ?? '';
+      final customerCode =
+          _selectedCustomer!['code'] ?? _selectedCustomer!['id'] ?? '';
       if (customerCode.isEmpty) return;
-      
+
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final locaCode = _saleLocationCode ?? authProvider.currentSalesman?.location ?? '01';
+      final locaCode =
+          _saleLocationCode ?? authProvider.currentSalesman?.location ?? '01';
       final costCenter = '000001';
 
       final outstanding = await ApiService.getCustomerOutstanding(
@@ -292,11 +311,12 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
         costCenter: costCenter,
         date: _selectedDate?.toIso8601String() ?? '',
       );
-      
+
       if (mounted) {
         setState(() {
           _customerOutstanding = outstanding;
-          if (_selectedCustomer != null && _selectedCustomer!['code'] == customerCode) {
+          if (_selectedCustomer != null &&
+              _selectedCustomer!['code'] == customerCode) {
             _selectedCustomer!['balance'] = outstanding.toStringAsFixed(2);
           }
         });
@@ -332,7 +352,9 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Auto-sync is already in progress in the background...'),
+            content: Text(
+              'Auto-sync is already in progress in the background...',
+            ),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -351,7 +373,9 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
             result.message ??
                 'Invoice sync: ${result.synced} synced, ${result.failed} failed, ${result.remaining} pending.',
           ),
-          backgroundColor: result.failed > 0 ? Colors.red.shade800 : Colors.green,
+          backgroundColor: result.failed > 0
+              ? Colors.red.shade800
+              : Colors.green,
           duration: Duration(seconds: result.failed > 0 ? 6 : 3),
         ),
       );
@@ -775,9 +799,12 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
     if (row.containsKey('selectedPrice') && row['selectedPrice'] != null) {
       return (row['selectedPrice'] as num).toDouble();
     }
-    if (row.containsKey('levelCode') && (row['levelCode']?.toString().isNotEmpty ?? false)) {
+    if (row.containsKey('levelCode') &&
+        (row['levelCode']?.toString().isNotEmpty ?? false)) {
       if (row.containsKey('unitPrice')) {
-        return (row['unitPrice'] as num?)?.toDouble() ?? (row['price'] as num?)?.toDouble() ?? 0.0;
+        return (row['unitPrice'] as num?)?.toDouble() ??
+            (row['price'] as num?)?.toDouble() ??
+            0.0;
       }
     }
     // If row has both prices stored, use based on sales type
@@ -860,7 +887,9 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
 
     final totalRequested = quantity + freeQuantity + alreadyCommitted;
     if (totalRequested > totalStock) {
-      final available = (totalStock - alreadyCommitted).clamp(0, totalStock).toInt();
+      final available = (totalStock - alreadyCommitted)
+          .clamp(0, totalStock)
+          .toInt();
       return _DiscountValidationResult(
         errorMessage: alreadyCommitted > 0
             ? 'Total ($totalRequested including existing bill items) exceeds stock (${totalStock.toInt()}). Available: $available.'
@@ -905,7 +934,8 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
     final levelSuffix = priceLevelName.isNotEmpty ? ' ($priceLevelName)' : '';
 
     return _DiscountValidationResult(
-      itemLabel: '${selectedItem['code']} • ${selectedItem['name']}$levelSuffix',
+      itemLabel:
+          '${selectedItem['code']} • ${selectedItem['name']}$levelSuffix',
       quantity: quantity,
       freeQuantity: freeQuantity,
       discountLabel: discountLabel,
@@ -920,12 +950,12 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
     if (_isCustomerDialogShowing) return null;
     _isCustomerDialogShowing = true;
     try {
-      final authProvider = Provider.of<AuthProvider>(
-        context,
-        listen: false,
-      );
-      final salesRepCode = authProvider.isSuper ? '' : authProvider.salesmanCode;
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final salesRepCode = authProvider.isSuper
+          ? ''
+          : authProvider.salesmanCode;
       void Function(void Function())? dialogSetState;
+      bool isDialogActive = false;
 
       void onCustomersRefreshed(List<Map<String, dynamic>> fresh) {
         if (!mounted) return;
@@ -933,8 +963,10 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
           _customers = fresh;
           _isLoadingCustomers = false;
         });
-        if (dialogSetState != null) {
-          dialogSetState!(() {});
+        if (isDialogActive && dialogSetState != null) {
+          try {
+            dialogSetState!(() {});
+          } catch (_) {}
         }
       }
 
@@ -986,7 +1018,9 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
         );
       }
 
-      List<Map<String, String>> buildDialogList(List<Map<String, dynamic>> rawList) {
+      List<Map<String, String>> buildDialogList(
+        List<Map<String, dynamic>> rawList,
+      ) {
         return rawList.map((customer) {
           final code = customer['code']?.toString() ?? '';
           final name = customer['name']?.toString() ?? '';
@@ -1024,18 +1058,25 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
         }).toList();
       }
 
-      return await showDialog<Map<String, String>?>(
-        context: context,
-        builder: (dialogContext) => StatefulBuilder(
-          builder: (dialogContext, setDialogState) {
-            dialogSetState = setDialogState;
-            return CustomerSelectionDialog(
-              customers: buildDialogList(_customers),
-              isLoading: _isLoadingCustomers,
-            );
-          },
-        ),
-      );
+      try {
+        isDialogActive = true;
+        return await showDialog<Map<String, String>?>(
+          context: context,
+          builder: (dialogContext) => StatefulBuilder(
+            builder: (dialogContext, setDialogState) {
+              dialogSetState = setDialogState;
+              return CustomerSelectionDialog(
+                customers: buildDialogList(_customers),
+                isLoading: _isLoadingCustomers,
+              );
+            },
+          ),
+        );
+      } finally {
+        isDialogActive = false;
+        dialogSetState = null;
+        _isCustomerDialogShowing = false;
+      }
     } finally {
       _isCustomerDialogShowing = false;
     }
@@ -1210,16 +1251,8 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                                   if (details != null &&
                                       details.containsKey('Amount')) {
                                     setDialogState(() {
-                                      // Store only the payment details, not the amount (amount is fixed as remaining)
                                       remainingPaymentDetails = Map.from(
                                         details,
-                                      );
-                                      remainingPaymentDetails.remove('Amount');
-                                      remainingPaymentDetails.remove(
-                                        'RemainingAmount',
-                                      );
-                                      remainingPaymentDetails.remove(
-                                        'RemainingPaymentMethod',
                                       );
                                     });
                                   }
@@ -1250,16 +1283,8 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                                   if (details != null &&
                                       details.containsKey('Amount')) {
                                     setDialogState(() {
-                                      // Store only the payment details, not the amount (amount is fixed as remaining)
                                       remainingPaymentDetails = Map.from(
                                         details,
-                                      );
-                                      remainingPaymentDetails.remove('Amount');
-                                      remainingPaymentDetails.remove(
-                                        'RemainingAmount',
-                                      );
-                                      remainingPaymentDetails.remove(
-                                        'RemainingPaymentMethod',
                                       );
                                     });
                                   }
@@ -1576,16 +1601,8 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                                   if (details != null &&
                                       details.containsKey('Amount')) {
                                     setDialogState(() {
-                                      // Store only the payment details, not the amount (amount is fixed as remaining)
                                       remainingPaymentDetails = Map.from(
                                         details,
-                                      );
-                                      remainingPaymentDetails.remove('Amount');
-                                      remainingPaymentDetails.remove(
-                                        'RemainingAmount',
-                                      );
-                                      remainingPaymentDetails.remove(
-                                        'RemainingPaymentMethod',
                                       );
                                     });
                                   }
@@ -1616,16 +1633,8 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                                   if (details != null &&
                                       details.containsKey('Amount')) {
                                     setDialogState(() {
-                                      // Store only the payment details, not the amount (amount is fixed as remaining)
                                       remainingPaymentDetails = Map.from(
                                         details,
-                                      );
-                                      remainingPaymentDetails.remove('Amount');
-                                      remainingPaymentDetails.remove(
-                                        'RemainingAmount',
-                                      );
-                                      remainingPaymentDetails.remove(
-                                        'RemainingPaymentMethod',
                                       );
                                     });
                                   }
@@ -1932,16 +1941,8 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                                   if (details != null &&
                                       details.containsKey('Amount')) {
                                     setDialogState(() {
-                                      // Store only the payment details, not the amount (amount is fixed as remaining)
                                       remainingPaymentDetails = Map.from(
                                         details,
-                                      );
-                                      remainingPaymentDetails.remove('Amount');
-                                      remainingPaymentDetails.remove(
-                                        'RemainingAmount',
-                                      );
-                                      remainingPaymentDetails.remove(
-                                        'RemainingPaymentMethod',
                                       );
                                     });
                                   }
@@ -1972,16 +1973,8 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                                   if (details != null &&
                                       details.containsKey('Amount')) {
                                     setDialogState(() {
-                                      // Store only the payment details, not the amount (amount is fixed as remaining)
                                       remainingPaymentDetails = Map.from(
                                         details,
-                                      );
-                                      remainingPaymentDetails.remove('Amount');
-                                      remainingPaymentDetails.remove(
-                                        'RemainingAmount',
-                                      );
-                                      remainingPaymentDetails.remove(
-                                        'RemainingPaymentMethod',
                                       );
                                     });
                                   }
@@ -2123,16 +2116,39 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
 
       case 'cheque':
       case 'third_party_cheque':
-        // Cheque: Cheque Number (6 digits), Bank, Branch, Cheque Date, Amount
+        // Cheque: Cheque Number (6 digits), Bank (from gen_bank), Branch (from gen_bankbranch), Cheque Date, Amount
         final chequeNumberController = TextEditingController(
           text: existingDetails?['Cheque Number']?.toString() ?? '',
         );
-        final bankController = TextEditingController(
-          text: existingDetails?['Bank']?.toString() ?? '',
-        );
-        final branchController = TextEditingController(
-          text: existingDetails?['Branch']?.toString() ?? '',
-        );
+        List<Map<String, dynamic>> banksList = await ApiService.getBanks();
+        String? selectedBankCode = existingDetails?['BankCode']?.toString();
+        String? selectedBankName = existingDetails?['Bank']?.toString();
+        String? selectedBranchCode = existingDetails?['BranchCode']?.toString();
+        String? selectedBranchName = existingDetails?['Branch']?.toString();
+        List<Map<String, dynamic>> branchesList = [];
+        bool isLoadingBranches = false;
+
+        // Try to pre-populate branches if bank is already selected
+        if (selectedBankCode != null && selectedBankCode.isNotEmpty) {
+          branchesList = await ApiService.getBankBranches(
+            bankCode: selectedBankCode,
+          );
+        } else if (selectedBankName != null && selectedBankName.isNotEmpty) {
+          final match = banksList.firstWhere(
+            (b) =>
+                (b['BankName']?.toString().toLowerCase().trim() ?? '') ==
+                selectedBankName!.toLowerCase().trim(),
+            orElse: () => {},
+          );
+          if (match.isNotEmpty) {
+            selectedBankCode = match['BankCode']?.toString().trim();
+            selectedBankName = match['BankName']?.toString().trim();
+            branchesList = await ApiService.getBankBranches(
+              bankCode: selectedBankCode!,
+            );
+          }
+        }
+
         DateTime? chequeDate = existingDetails?['Cheque Date'] != null
             ? DateTime.tryParse(existingDetails!['Cheque Date'].toString())
             : DateTime.now();
@@ -2157,6 +2173,23 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
               builder: (dialogContext) {
                 return StatefulBuilder(
                   builder: (dialogContext, setDialogState) {
+                    final validBankCode =
+                        banksList.any(
+                          (b) =>
+                              (b['BankCode']?.toString().trim() ?? '') ==
+                              selectedBankCode,
+                        )
+                        ? selectedBankCode
+                        : null;
+                    final validBranchCode =
+                        branchesList.any(
+                          (b) =>
+                              (b['BranchCode']?.toString().trim() ?? '') ==
+                              selectedBranchCode,
+                        )
+                        ? selectedBranchCode
+                        : null;
+
                     return AlertDialog(
                       title: Row(
                         children: [
@@ -2216,10 +2249,12 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                               ),
                             ),
                             const SizedBox(height: 16),
-                            TextField(
-                              controller: bankController,
+                            DropdownButtonFormField<String>(
+                              isExpanded: true,
+                              menuMaxHeight: 350,
+                              value: validBankCode,
                               decoration: InputDecoration(
-                                labelText: 'Bank',
+                                labelText: 'Bank *',
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
                                 ),
@@ -2227,12 +2262,63 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                                   Icons.account_balance_rounded,
                                 ),
                               ),
+                              hint: Text(
+                                banksList.isEmpty
+                                    ? 'Loading banks...'
+                                    : 'Select Bank',
+                              ),
+                              items: banksList.map((bank) {
+                                final bCode =
+                                    bank['BankCode']?.toString().trim() ?? '';
+                                final bName =
+                                    bank['BankName']?.toString().trim() ?? '';
+                                return DropdownMenuItem<String>(
+                                  value: bCode,
+                                  child: Text(
+                                    bName,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                );
+                              }).toList(),
+                              onChanged: (newBankCode) async {
+                                if (newBankCode == null) return;
+                                final bMatch = banksList.firstWhere(
+                                  (b) =>
+                                      (b['BankCode']?.toString().trim() ??
+                                          '') ==
+                                      newBankCode,
+                                  orElse: () => {
+                                    'BankCode': newBankCode,
+                                    'BankName': '',
+                                  },
+                                );
+                                setDialogState(() {
+                                  selectedBankCode = newBankCode;
+                                  selectedBankName =
+                                      bMatch['BankName']?.toString().trim() ??
+                                      '';
+                                  selectedBranchCode = null;
+                                  selectedBranchName = null;
+                                  isLoadingBranches = true;
+                                  branchesList = [];
+                                });
+                                final loadedBranches =
+                                    await ApiService.getBankBranches(
+                                      bankCode: newBankCode,
+                                    );
+                                setDialogState(() {
+                                  branchesList = loadedBranches;
+                                  isLoadingBranches = false;
+                                });
+                              },
                             ),
                             const SizedBox(height: 16),
-                            TextField(
-                              controller: branchController,
+                            DropdownButtonFormField<String>(
+                              isExpanded: true,
+                              menuMaxHeight: 350,
+                              value: validBranchCode,
                               decoration: InputDecoration(
-                                labelText: 'Branch',
+                                labelText: 'Branch *',
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
                                 ),
@@ -2240,6 +2326,58 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                                   Icons.location_on_rounded,
                                 ),
                               ),
+                              hint: Text(
+                                selectedBankCode == null
+                                    ? 'Select a bank first'
+                                    : (isLoadingBranches
+                                          ? 'Loading branches...'
+                                          : (branchesList.isEmpty
+                                                ? 'No branches found'
+                                                : 'Select Branch')),
+                              ),
+                              items: branchesList.map((branch) {
+                                final brCode =
+                                    branch['BranchCode']?.toString().trim() ??
+                                    '';
+                                final brName =
+                                    branch['BranchName']?.toString().trim() ??
+                                    '';
+                                return DropdownMenuItem<String>(
+                                  value: brCode,
+                                  child: Text(
+                                    brName,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                );
+                              }).toList(),
+                              onChanged:
+                                  (selectedBankCode == null ||
+                                      isLoadingBranches ||
+                                      branchesList.isEmpty)
+                                  ? null
+                                  : (newBranchCode) {
+                                      if (newBranchCode == null) return;
+                                      final brMatch = branchesList.firstWhere(
+                                        (b) =>
+                                            (b['BranchCode']
+                                                    ?.toString()
+                                                    .trim() ??
+                                                '') ==
+                                            newBranchCode,
+                                        orElse: () => {
+                                          'BranchCode': newBranchCode,
+                                          'BranchName': '',
+                                        },
+                                      );
+                                      setDialogState(() {
+                                        selectedBranchCode = newBranchCode;
+                                        selectedBranchName =
+                                            brMatch['BranchName']
+                                                ?.toString()
+                                                .trim() ??
+                                            '';
+                                      });
+                                    },
                             ),
                             const SizedBox(height: 16),
                             InkWell(
@@ -2388,18 +2526,8 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                                           if (details != null &&
                                               details.containsKey('Amount')) {
                                             setDialogState(() {
-                                              // Store only the payment details, not the amount (amount is fixed as remaining)
                                               remainingPaymentDetails =
                                                   Map.from(details);
-                                              remainingPaymentDetails.remove(
-                                                'Amount',
-                                              );
-                                              remainingPaymentDetails.remove(
-                                                'RemainingAmount',
-                                              );
-                                              remainingPaymentDetails.remove(
-                                                'RemainingPaymentMethod',
-                                              );
                                             });
                                           }
                                         }
@@ -2431,18 +2559,8 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                                           if (details != null &&
                                               details.containsKey('Amount')) {
                                             setDialogState(() {
-                                              // Store only the payment details, not the amount (amount is fixed as remaining)
                                               remainingPaymentDetails =
                                                   Map.from(details);
-                                              remainingPaymentDetails.remove(
-                                                'Amount',
-                                              );
-                                              remainingPaymentDetails.remove(
-                                                'RemainingAmount',
-                                              );
-                                              remainingPaymentDetails.remove(
-                                                'RemainingPaymentMethod',
-                                              );
                                             });
                                           }
                                         },
@@ -2536,15 +2654,17 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                               });
                               return;
                             }
-                            if (bankController.text.trim().isEmpty) {
+                            if (selectedBankCode == null ||
+                                selectedBankCode!.trim().isEmpty) {
                               setDialogState(() {
-                                paymentError = 'Please enter bank name';
+                                paymentError = 'Please select a bank';
                               });
                               return;
                             }
-                            if (branchController.text.trim().isEmpty) {
+                            if (selectedBranchCode == null ||
+                                selectedBranchCode!.trim().isEmpty) {
                               setDialogState(() {
-                                paymentError = 'Please enter branch name';
+                                paymentError = 'Please select a branch';
                               });
                               return;
                             }
@@ -2587,8 +2707,10 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                             Navigator.of(dialogContext).pop({
                               'Cheque Number': chequeNumberController.text
                                   .trim(),
-                              'Bank': bankController.text.trim(),
-                              'Branch': branchController.text.trim(),
+                              'Bank': selectedBankName ?? '',
+                              'BankCode': selectedBankCode ?? '',
+                              'Branch': selectedBranchName ?? '',
+                              'BranchCode': selectedBranchCode ?? '',
                               'Cheque Date': DateFormat(
                                 'yyyy-MM-dd',
                               ).format(chequeDate!),
@@ -2790,16 +2912,8 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                                   if (details != null &&
                                       details.containsKey('Amount')) {
                                     setDialogState(() {
-                                      // Store only the payment details, not the amount (amount is fixed as remaining)
                                       remainingPaymentDetails = Map.from(
                                         details,
-                                      );
-                                      remainingPaymentDetails.remove('Amount');
-                                      remainingPaymentDetails.remove(
-                                        'RemainingAmount',
-                                      );
-                                      remainingPaymentDetails.remove(
-                                        'RemainingPaymentMethod',
                                       );
                                     });
                                   }
@@ -3366,16 +3480,8 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                                   if (details != null &&
                                       details.containsKey('Amount')) {
                                     setDialogState(() {
-                                      // Store only the payment details, not the amount (amount is fixed as remaining)
                                       remainingPaymentDetails = Map.from(
                                         details,
-                                      );
-                                      remainingPaymentDetails.remove('Amount');
-                                      remainingPaymentDetails.remove(
-                                        'RemainingAmount',
-                                      );
-                                      remainingPaymentDetails.remove(
-                                        'RemainingPaymentMethod',
                                       );
                                     });
                                   }
@@ -3522,23 +3628,8 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
   Future<void> _openPostInvoiceDialog() async {
     final List<Map<String, dynamic>> paymentMethods = [
       {'id': 'cash', 'name': 'Cash', 'requiresDetails': false},
-      {'id': 'master_card', 'name': 'Master Card', 'requiresDetails': true},
-      {'id': 'visa_card', 'name': 'Visa Card', 'requiresDetails': true},
-      {'id': 'amex_card', 'name': 'Amex Card', 'requiresDetails': true},
       {'id': 'credit', 'name': 'Credit', 'requiresDetails': true},
       {'id': 'cheque', 'name': 'Cheque', 'requiresDetails': true},
-      {
-        'id': 'third_party_cheque',
-        'name': 'Third Party Cheque',
-        'requiresDetails': true,
-      },
-      {'id': 'cod', 'name': 'COD', 'requiresDetails': false},
-      {
-        'id': 'direct_deposit',
-        'name': 'Direct Deposit',
-        'requiresDetails': true,
-      },
-      {'id': 'online', 'name': 'Online', 'requiresDetails': true},
     ];
 
     // Single payment method for all items
@@ -3920,6 +4011,80 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                                           return const SizedBox.shrink();
                                         }
 
+                                        final breakdownItems =
+                                            <Map<String, dynamic>>[];
+                                        String? curMethod =
+                                            selectedPaymentMethod;
+                                        Map<String, dynamic>? curDetails =
+                                            paymentDetails;
+                                        double unalloc = total;
+
+                                        while (curMethod != null &&
+                                            unalloc > 0.001) {
+                                          final entAmt =
+                                              (curDetails?['Amount'] as num?)
+                                                  ?.toDouble();
+                                          final remAmt =
+                                              (curDetails?['RemainingAmount']
+                                                      as num?)
+                                                  ?.toDouble() ??
+                                              0.0;
+                                          final nxtMethod =
+                                              curDetails?['RemainingPaymentMethod']
+                                                  ?.toString();
+                                          final nxtDetails =
+                                              curDetails?['RemainingPaymentDetails']
+                                                  as Map<String, dynamic>?;
+
+                                          double amt = unalloc;
+                                          if (entAmt != null && entAmt > 0) {
+                                            amt = entAmt;
+                                          } else if (remAmt > 0.001 &&
+                                              nxtMethod != null) {
+                                            amt = (unalloc - remAmt).clamp(
+                                              0,
+                                              unalloc,
+                                            );
+                                          }
+                                          if (amt > unalloc) amt = unalloc;
+
+                                          final mName = paymentMethods
+                                              .firstWhere(
+                                                (m) => m['id'] == curMethod,
+                                                orElse: () => {
+                                                  'name':
+                                                      curMethod ?? 'Payment',
+                                                },
+                                              )['name'];
+
+                                          breakdownItems.add({
+                                            'name': mName,
+                                            'amount': amt,
+                                          });
+
+                                          unalloc = (unalloc - amt).clamp(
+                                            0,
+                                            double.infinity,
+                                          );
+
+                                          if (remAmt > 0.001 &&
+                                              nxtMethod != null &&
+                                              nxtMethod.isNotEmpty) {
+                                            curMethod = nxtMethod;
+                                            curDetails = nxtDetails;
+                                          } else {
+                                            curMethod = null;
+                                            curDetails = null;
+                                          }
+                                        }
+
+                                        if (unalloc > 0.01) {
+                                          breakdownItems.add({
+                                            'name': 'Credit (Balance)',
+                                            'amount': unalloc,
+                                          });
+                                        }
+
                                         return Column(
                                           children: [
                                             const SizedBox(height: 24),
@@ -3966,82 +4131,44 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                                                     ],
                                                   ),
                                                   const SizedBox(height: 12),
-                                                  Row(
-                                                    mainAxisAlignment:
-                                                        MainAxisAlignment
-                                                            .spaceBetween,
-                                                    children: [
-                                                      Text(
-                                                        paymentMethods.firstWhere(
-                                                          (m) =>
-                                                              m['id'] ==
-                                                              selectedPaymentMethod,
-                                                          orElse: () => {
-                                                            'name': 'Payment',
-                                                          },
-                                                        )['name'],
-                                                        style: theme
-                                                            .textTheme
-                                                            .bodyMedium
-                                                            ?.copyWith(
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .w600,
-                                                            ),
+                                                  ...breakdownItems.map((item) {
+                                                    return Padding(
+                                                      padding:
+                                                          const EdgeInsets.only(
+                                                            bottom: 8,
+                                                          ),
+                                                      child: Row(
+                                                        mainAxisAlignment:
+                                                            MainAxisAlignment
+                                                                .spaceBetween,
+                                                        children: [
+                                                          Text(
+                                                            item['name']
+                                                                .toString(),
+                                                            style: theme
+                                                                .textTheme
+                                                                .bodyMedium
+                                                                ?.copyWith(
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w600,
+                                                                ),
+                                                          ),
+                                                          Text(
+                                                            'Rs. ${(item['amount'] as double).toStringAsFixed(2)}',
+                                                            style: theme
+                                                                .textTheme
+                                                                .bodyMedium
+                                                                ?.copyWith(
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w600,
+                                                                ),
+                                                          ),
+                                                        ],
                                                       ),
-                                                      Text(
-                                                        'Rs. ${(paymentDetails!['Amount'] as num?)?.toStringAsFixed(2) ?? '0.00'}',
-                                                        style: theme
-                                                            .textTheme
-                                                            .bodyMedium
-                                                            ?.copyWith(
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .w600,
-                                                            ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                  const SizedBox(height: 8),
-                                                  Row(
-                                                    mainAxisAlignment:
-                                                        MainAxisAlignment
-                                                            .spaceBetween,
-                                                    children: [
-                                                      Text(
-                                                        paymentMethods.firstWhere(
-                                                              (m) =>
-                                                                  m['id'] ==
-                                                                  (paymentDetails!['RemainingPaymentMethod']
-                                                                          ?.toString() ??
-                                                                      'cash'),
-                                                              orElse: () => {
-                                                                'name': 'Cash',
-                                                              },
-                                                            )['name'] +
-                                                            ' (Remaining)',
-                                                        style: theme
-                                                            .textTheme
-                                                            .bodyMedium
-                                                            ?.copyWith(
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .w600,
-                                                            ),
-                                                      ),
-                                                      Text(
-                                                        'Rs. ${remainingAmount.toStringAsFixed(2)}',
-                                                        style: theme
-                                                            .textTheme
-                                                            .bodyMedium
-                                                            ?.copyWith(
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .w600,
-                                                            ),
-                                                      ),
-                                                    ],
-                                                  ),
+                                                    );
+                                                  }),
                                                   const Divider(height: 24),
                                                   Row(
                                                     mainAxisAlignment:
@@ -4191,24 +4318,42 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                                                       spacing: 8,
                                                       runSpacing: 2,
                                                       children: [
-                                                        if (item['priceLevelName'] != null &&
-                                                            item['priceLevelName'].toString().isNotEmpty)
+                                                        if (item['priceLevelName'] !=
+                                                                null &&
+                                                            item['priceLevelName']
+                                                                .toString()
+                                                                .isNotEmpty)
                                                           Container(
-                                                            padding: const EdgeInsets.symmetric(
-                                                              horizontal: 6,
-                                                              vertical: 2,
-                                                            ),
+                                                            padding:
+                                                                const EdgeInsets.symmetric(
+                                                                  horizontal: 6,
+                                                                  vertical: 2,
+                                                                ),
                                                             decoration: BoxDecoration(
-                                                              color: _accentColor.withValues(alpha: 0.12),
-                                                              borderRadius: BorderRadius.circular(4),
+                                                              color: _accentColor
+                                                                  .withValues(
+                                                                    alpha: 0.12,
+                                                                  ),
+                                                              borderRadius:
+                                                                  BorderRadius.circular(
+                                                                    4,
+                                                                  ),
                                                             ),
                                                             child: Text(
-                                                              item['priceLevelName'].toString(),
-                                                              style: theme.textTheme.labelSmall?.copyWith(
-                                                                color: _accentColor,
-                                                                fontWeight: FontWeight.bold,
-                                                                fontSize: 10,
-                                                             ),
+                                                              item['priceLevelName']
+                                                                  .toString(),
+                                                              style: theme
+                                                                  .textTheme
+                                                                  .labelSmall
+                                                                  ?.copyWith(
+                                                                    color:
+                                                                        _accentColor,
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .bold,
+                                                                    fontSize:
+                                                                        10,
+                                                                  ),
                                                             ),
                                                           ),
                                                         Text(
@@ -4575,15 +4720,20 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                                               '',
                                           overflow: TextOverflow.ellipsis,
                                         ),
-                                        if (entry.value['priceLevelName'] != null &&
-                                            entry.value['priceLevelName'].toString().isNotEmpty)
+                                        if (entry.value['priceLevelName'] !=
+                                                null &&
+                                            entry.value['priceLevelName']
+                                                .toString()
+                                                .isNotEmpty)
                                           Text(
-                                            entry.value['priceLevelName'].toString(),
-                                            style: theme.textTheme.labelSmall?.copyWith(
-                                              color: _accentColor,
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 10,
-                                            ),
+                                            entry.value['priceLevelName']
+                                                .toString(),
+                                            style: theme.textTheme.labelSmall
+                                                ?.copyWith(
+                                                  color: _accentColor,
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 10,
+                                                ),
                                           ),
                                       ],
                                     ),
@@ -4673,6 +4823,7 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
 
     // Allow async loader to refresh dialog UI when products finish loading
     void Function(void Function())? dialogSetState;
+    bool isProductDialogActive = true;
     final searchController = TextEditingController();
     final qtyController = TextEditingController(text: '1');
     final discountController = TextEditingController(text: '0');
@@ -4725,32 +4876,40 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
         _products = fresh;
         _isLoadingProducts = false;
       });
-      if (dialogSetState != null) {
-        dialogSetState!(() {
-          if (selectedItem != null) {
-            final match = fresh.where((item) => item['code'] == selectedItem!['code']);
-            if (match.isNotEmpty) {
-              selectedItem = match.first;
+      if (isProductDialogActive && dialogSetState != null) {
+        try {
+          dialogSetState!(() {
+            if (selectedItem != null) {
+              final match = fresh.where(
+                (item) => item['code'] == selectedItem!['code'],
+              );
+              if (match.isNotEmpty) {
+                selectedItem = match.first;
+              }
             }
-          }
-          final query = searchController.text.trim();
-          if (query.isNotEmpty) {
-            filteredItems = fresh.where((item) => matchesQuery(item, query)).toList();
-          } else {
-            filteredItems = fresh;
-          }
-        });
+            final query = searchController.text.trim();
+            if (query.isNotEmpty) {
+              filteredItems = fresh
+                  .where((item) => matchesQuery(item, query))
+                  .toList();
+            } else {
+              filteredItems = fresh;
+            }
+          });
+        } catch (_) {}
       }
     }
 
     // Fast realtime stock sync on dialog open (runs in milliseconds)
-    ApiService.fetchRealtimeStockMap().then((stockMap) async {
-      if (!mounted || stockMap.isEmpty) return;
-      final updated = await ApiService.applyRealtimeStock(stockMap);
-      if (updated.isNotEmpty) {
-        onProductsRefreshed(updated);
-      }
-    }).catchError((_) {});
+    ApiService.fetchRealtimeStockMap()
+        .then((stockMap) async {
+          if (!mounted || stockMap.isEmpty) return;
+          final updated = await ApiService.applyRealtimeStock(stockMap);
+          if (updated.isNotEmpty) {
+            onProductsRefreshed(updated);
+          }
+        })
+        .catchError((_) {});
 
     // Load products from device storage first (0ms), then refresh silently in background
     if (_products.isEmpty && !_isLoadingProducts) {
@@ -4758,37 +4917,41 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
         _isLoadingProducts = true;
       });
       ApiService.getProductsForInvoiceCacheFirst(
-        onBackgroundUpdate: onProductsRefreshed,
-      ).then((products) {
-        if (!mounted) return;
-        setState(() {
-          _products = products;
-          _isLoadingProducts = false;
-        });
-        if (dialogSetState != null) {
-          dialogSetState!(() {
-            final query = searchController.text.trim();
-            if (query.isNotEmpty) {
-              filteredItems = products.where((item) => matchesQuery(item, query)).toList();
-            } else {
-              filteredItems = products;
+            onBackgroundUpdate: onProductsRefreshed,
+          )
+          .then((products) {
+            if (!mounted) return;
+            setState(() {
+              _products = products;
+              _isLoadingProducts = false;
+            });
+            if (dialogSetState != null) {
+              dialogSetState!(() {
+                final query = searchController.text.trim();
+                if (query.isNotEmpty) {
+                  filteredItems = products
+                      .where((item) => matchesQuery(item, query))
+                      .toList();
+                } else {
+                  filteredItems = products;
+                }
+              });
             }
+          })
+          .catchError((e) {
+            if (!mounted) return;
+            setState(() {
+              _isLoadingProducts = false;
+            });
+            if (dialogSetState != null) dialogSetState!(() {});
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Failed to load items.'),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 3),
+              ),
+            );
           });
-        }
-      }).catchError((e) {
-        if (!mounted) return;
-        setState(() {
-          _isLoadingProducts = false;
-        });
-        if (dialogSetState != null) dialogSetState!(() {});
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to load items.'),
-            backgroundColor: Colors.red,
-            duration: Duration(seconds: 3),
-          ),
-        );
-      });
     } else {
       // Products already in memory: refresh silently in background to update stock and catalog
       ApiService.triggerSilentProductsRefresh(
@@ -4931,31 +5094,42 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
 
                 if (selectedItem != null) {
                   final code = selectedItem!['code']?.toString() ?? '';
-                  final totalStock = (selectedItem!['stockQty'] as num?)?.toDouble() ?? 0.0;
+                  final totalStock =
+                      (selectedItem!['stockQty'] as num?)?.toDouble() ?? 0.0;
                   final committedInBill = getBillCommittedQty(code);
-                  final availableStock = (totalStock - committedInBill).clamp(0, totalStock).toInt();
+                  final availableStock = (totalStock - committedInBill)
+                      .clamp(0, totalStock)
+                      .toInt();
 
                   if (totalStock <= 0) {
-                    errorText = '${selectedItem!['name']} is out of stock (Stock: 0).';
+                    errorText =
+                        '${selectedItem!['name']} is out of stock (Stock: 0).';
                     return;
                   }
 
                   final isQty = (controller == qtyController);
-                  final proposedQty = isQty ? parsed : (int.tryParse(qtyController.text) ?? 1);
-                  final proposedFree = !isQty ? parsed : (int.tryParse(freeQtyController.text) ?? 0);
+                  final proposedQty = isQty
+                      ? parsed
+                      : (int.tryParse(qtyController.text) ?? 1);
+                  final proposedFree = !isQty
+                      ? parsed
+                      : (int.tryParse(freeQtyController.text) ?? 0);
 
                   if ((proposedQty + proposedFree) > availableStock) {
-                    errorText = 'Quantity (${proposedQty + proposedFree}) exceeds available stock ($availableStock).';
+                    errorText =
+                        'Quantity (${proposedQty + proposedFree}) exceeds available stock ($availableStock).';
                     return;
                   }
 
                   controller.text = parsed.toString();
                   errorText = null;
 
-                  final levelCode = selectedItem!['levelCode']?.toString() ?? '';
+                  final levelCode =
+                      selectedItem!['levelCode']?.toString() ?? '';
                   final existingIndex = pendingEntries.indexWhere(
-                    (e) => e['code'] == selectedItem!['code'] &&
-                           (e['levelCode']?.toString() ?? '') == levelCode,
+                    (e) =>
+                        e['code'] == selectedItem!['code'] &&
+                        (e['levelCode']?.toString() ?? '') == levelCode,
                   );
                   if (existingIndex >= 0) {
                     pendingEntries[existingIndex]['qty'] = proposedQty;
@@ -4992,12 +5166,16 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
               if (tappedItem != null) {
                 final itemCopy = Map<String, dynamic>.from(tappedItem);
                 if (priceLevel != null) {
-                  final double lvlPrice = (priceLevel['price'] as num?)?.toDouble() ?? _getPriceForItem(tappedItem);
+                  final double lvlPrice =
+                      (priceLevel['price'] as num?)?.toDouble() ??
+                      _getPriceForItem(tappedItem);
                   itemCopy['selectedPrice'] = lvlPrice;
                   itemCopy['unitPrice'] = lvlPrice;
                   itemCopy['wholeSalePrice'] = lvlPrice;
-                  itemCopy['levelCode'] = priceLevel['levelCode']?.toString() ?? '';
-                  itemCopy['priceLevelName'] = priceLevel['priceLevelName']?.toString() ?? '';
+                  itemCopy['levelCode'] =
+                      priceLevel['levelCode']?.toString() ?? '';
+                  itemCopy['priceLevelName'] =
+                      priceLevel['priceLevelName']?.toString() ?? '';
                 }
                 selectedItem = itemCopy;
               }
@@ -5005,34 +5183,46 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
               if (selectedItem == null) return;
               final productCode = selectedItem?['code']?.toString() ?? '';
               final levelCode = selectedItem?['levelCode']?.toString() ?? '';
-              final priceLevelName = selectedItem?['priceLevelName']?.toString() ?? '';
-              final totalStock = (selectedItem?['stockQty'] as num?)?.toDouble() ?? 0.0;
+              final priceLevelName =
+                  selectedItem?['priceLevelName']?.toString() ?? '';
+              final totalStock =
+                  (selectedItem?['stockQty'] as num?)?.toDouble() ?? 0.0;
 
               if (totalStock <= 0) {
                 setDialogState(() {
-                  errorText = '${selectedItem?['name'] ?? productCode} is out of stock (Stock: 0) and cannot be added.';
+                  errorText =
+                      '${selectedItem?['name'] ?? productCode} is out of stock (Stock: 0) and cannot be added.';
                 });
                 return;
               }
 
               final committedInBill = getBillCommittedQty(productCode);
               final existingIndex = pendingEntries.indexWhere(
-                (entry) => entry['code']?.toString() == productCode &&
-                           (entry['levelCode']?.toString() ?? '') == levelCode,
+                (entry) =>
+                    entry['code']?.toString() == productCode &&
+                    (entry['levelCode']?.toString() ?? '') == levelCode,
               );
               final existingPendingQty = existingIndex >= 0
-                  ? (((pendingEntries[existingIndex]['qty'] as num?)?.toInt() ?? 0) +
-                     ((pendingEntries[existingIndex]['freeQty'] as num?)?.toInt() ?? 0))
+                  ? (((pendingEntries[existingIndex]['qty'] as num?)?.toInt() ??
+                            0) +
+                        ((pendingEntries[existingIndex]['freeQty'] as num?)
+                                ?.toInt() ??
+                            0))
                   : 0;
 
               final addQty = int.tryParse(qtyController.text.trim()) ?? 1;
               final addFree = int.tryParse(freeQtyController.text.trim()) ?? 0;
-              final proposedTotal = existingPendingQty + addQty + addFree + committedInBill;
+              final proposedTotal =
+                  existingPendingQty + addQty + addFree + committedInBill;
 
               if (proposedTotal > totalStock) {
-                final availableRemaining = (totalStock - committedInBill - existingPendingQty).clamp(0, totalStock).toInt();
+                final availableRemaining =
+                    (totalStock - committedInBill - existingPendingQty)
+                        .clamp(0, totalStock)
+                        .toInt();
                 setDialogState(() {
-                  errorText = 'Cannot add: total requested ($proposedTotal) exceeds stock (${totalStock.toInt()}). Available: $availableRemaining.';
+                  errorText =
+                      'Cannot add: total requested ($proposedTotal) exceeds stock (${totalStock.toInt()}). Available: $availableRemaining.';
                 });
                 return;
               }
@@ -5065,7 +5255,10 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                   'price': validation.finalPrice,
                   'unitPrice': selectedItem?['unitPrice'] ?? 0.0,
                   'wholeSalePrice': selectedItem?['wholeSalePrice'] ?? 0.0,
-                  'selectedPrice': selectedItem?['selectedPrice'] ?? selectedItem?['unitPrice'] ?? 0.0,
+                  'selectedPrice':
+                      selectedItem?['selectedPrice'] ??
+                      selectedItem?['unitPrice'] ??
+                      0.0,
                   'costPrice': selectedItem?['costPrice'] ?? 0.0,
                   'uom': selectedItem?['uom'] ?? 'PCS',
                   'longDescription': selectedItem?['longDescription'] ?? '',
@@ -5234,8 +5427,12 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                                                 item['code'];
                                         return InkWell(
                                           onTap: () async {
-                                            final itemCode = item['code']?.toString() ?? '';
-                                            final totalStock = (item['stockQty'] as num?)?.toDouble() ?? 0.0;
+                                            final itemCode =
+                                                item['code']?.toString() ?? '';
+                                            final totalStock =
+                                                (item['stockQty'] as num?)
+                                                    ?.toDouble() ??
+                                                0.0;
                                             if (totalStock <= 0) {
                                               setDialogState(() {
                                                 errorText =
@@ -5244,9 +5441,16 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                                               return;
                                             }
 
-                                            final committedInBill = getBillCommittedQty(itemCode);
-                                            final alreadyPending = getPendingCommittedQty(itemCode);
-                                            final remainingAvailable = totalStock - committedInBill - alreadyPending;
+                                            final committedInBill =
+                                                getBillCommittedQty(itemCode);
+                                            final alreadyPending =
+                                                getPendingCommittedQty(
+                                                  itemCode,
+                                                );
+                                            final remainingAvailable =
+                                                totalStock -
+                                                committedInBill -
+                                                alreadyPending;
 
                                             if (remainingAvailable < 1) {
                                               setDialogState(() {
@@ -5256,19 +5460,32 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                                               return;
                                             }
 
-                                            final rawPriceLevels = item['priceLevels'];
-                                            final List<Map<String, dynamic>> priceLevels = (rawPriceLevels is List)
-                                                ? rawPriceLevels.map((e) => Map<String, dynamic>.from(e as Map)).toList()
+                                            final rawPriceLevels =
+                                                item['priceLevels'];
+                                            final List<Map<String, dynamic>>
+                                            priceLevels =
+                                                (rawPriceLevels is List)
+                                                ? rawPriceLevels
+                                                      .map(
+                                                        (e) =>
+                                                            Map<
+                                                              String,
+                                                              dynamic
+                                                            >.from(e as Map),
+                                                      )
+                                                      .toList()
                                                 : <Map<String, dynamic>>[];
 
-                                            Map<String, dynamic>? chosenPriceLevel;
+                                            Map<String, dynamic>?
+                                            chosenPriceLevel;
                                             if (priceLevels.isNotEmpty) {
-                                              chosenPriceLevel = await PriceLevelSelectionDialog.show(
-                                                context: dialogContext,
-                                                item: item,
-                                                priceLevels: priceLevels,
-                                                accentColor: _accentColor,
-                                              );
+                                              chosenPriceLevel =
+                                                  await PriceLevelSelectionDialog.show(
+                                                    context: dialogContext,
+                                                    item: item,
+                                                    priceLevels: priceLevels,
+                                                    accentColor: _accentColor,
+                                                  );
                                               if (chosenPriceLevel == null) {
                                                 return;
                                               }
@@ -5280,13 +5497,23 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                                             freeQtyController.text = '0';
                                             discountController.text = '0';
                                             useAmountDiscount = false;
-                                            addPendingEntry(item, chosenPriceLevel);
-                                            final levelCode = chosenPriceLevel?['levelCode']?.toString() ?? '';
+                                            addPendingEntry(
+                                              item,
+                                              chosenPriceLevel,
+                                            );
+                                            final levelCode =
+                                                chosenPriceLevel?['levelCode']
+                                                    ?.toString() ??
+                                                '';
                                             final existingIndex = pendingEntries
                                                 .indexWhere(
                                                   (e) =>
-                                                      e['code'] == item['code'] &&
-                                                      (e['levelCode']?.toString() ?? '') == levelCode,
+                                                      e['code'] ==
+                                                          item['code'] &&
+                                                      (e['levelCode']
+                                                                  ?.toString() ??
+                                                              '') ==
+                                                          levelCode,
                                                 );
                                             if (existingIndex >= 0) {
                                               setDialogState(() {
@@ -5332,45 +5559,70 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                                                   children: [
                                                     AspectRatio(
                                                       aspectRatio: 1,
-                                                      child: ProductImageThumbnail(
-                                                        expand: true,
-                                                        image: item['image'],
-                                                        productCode: item['code']
-                                                            ?.toString(),
-                                                      ),
+                                                      child:
+                                                          ProductImageThumbnail(
+                                                            expand: true,
+                                                            image:
+                                                                item['image'],
+                                                            productCode:
+                                                                item['code']
+                                                                    ?.toString(),
+                                                          ),
                                                     ),
-                                                    if (item['priceLevels'] is List &&
-                                                        (item['priceLevels'] as List).isNotEmpty)
+                                                    if (item['priceLevels']
+                                                            is List &&
+                                                        (item['priceLevels']
+                                                                as List)
+                                                            .isNotEmpty)
                                                       Positioned(
                                                         top: 4,
                                                         right: 4,
                                                         child: Container(
-                                                          padding: const EdgeInsets.symmetric(
-                                                            horizontal: 5,
-                                                            vertical: 2,
-                                                          ),
+                                                          padding:
+                                                              const EdgeInsets.symmetric(
+                                                                horizontal: 5,
+                                                                vertical: 2,
+                                                              ),
                                                           decoration: BoxDecoration(
-                                                            color: Colors.black.withValues(alpha: 0.78),
-                                                            borderRadius: BorderRadius.circular(6),
+                                                            color: Colors.black
+                                                                .withValues(
+                                                                  alpha: 0.78,
+                                                                ),
+                                                            borderRadius:
+                                                                BorderRadius.circular(
+                                                                  6,
+                                                                ),
                                                             border: Border.all(
-                                                              color: _accentColor.withValues(alpha: 0.8),
+                                                              color: _accentColor
+                                                                  .withValues(
+                                                                    alpha: 0.8,
+                                                                  ),
                                                               width: 0.8,
                                                             ),
                                                           ),
                                                           child: Row(
-                                                            mainAxisSize: MainAxisSize.min,
+                                                            mainAxisSize:
+                                                                MainAxisSize
+                                                                    .min,
                                                             children: [
                                                               Icon(
-                                                                Icons.layers_rounded,
+                                                                Icons
+                                                                    .layers_rounded,
                                                                 size: 10,
-                                                                color: _accentColor,
+                                                                color:
+                                                                    _accentColor,
                                                               ),
-                                                              const SizedBox(width: 2),
+                                                              const SizedBox(
+                                                                width: 2,
+                                                              ),
                                                               Text(
                                                                 '${(item['priceLevels'] as List).length} Levels',
                                                                 style: const TextStyle(
-                                                                  color: Colors.white,
-                                                                  fontWeight: FontWeight.bold,
+                                                                  color: Colors
+                                                                      .white,
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .bold,
                                                                   fontSize: 9,
                                                                 ),
                                                               ),
@@ -5621,23 +5873,30 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                           // Final strict stock validation across all pending items
                           for (final entry in pendingEntries) {
                             final code = entry['code']?.toString() ?? '';
-                            final productMatch = _products.where((p) => p['code']?.toString() == code);
+                            final productMatch = _products.where(
+                              (p) => p['code']?.toString() == code,
+                            );
                             final totalStock = productMatch.isNotEmpty
-                                ? ((productMatch.first['stockQty'] as num?)?.toDouble() ?? 0.0)
+                                ? ((productMatch.first['stockQty'] as num?)
+                                          ?.toDouble() ??
+                                      0.0)
                                 : 0.0;
                             final committed = getBillCommittedQty(code);
-                            final reqQty = ((entry['qty'] as num?)?.toInt() ?? 0) +
+                            final reqQty =
+                                ((entry['qty'] as num?)?.toInt() ?? 0) +
                                 ((entry['freeQty'] as num?)?.toInt() ?? 0);
 
                             if (totalStock <= 0) {
                               setDialogState(() {
-                                errorText = '${entry['item'] ?? code} is out of stock (Stock: 0) and cannot be added.';
+                                errorText =
+                                    '${entry['item'] ?? code} is out of stock (Stock: 0) and cannot be added.';
                               });
                               return;
                             }
                             if ((reqQty + committed) > totalStock) {
                               setDialogState(() {
-                                errorText = '${entry['item'] ?? code} requested ($reqQty + $committed in bill) exceeds stock (${totalStock.toInt()}).';
+                                errorText =
+                                    '${entry['item'] ?? code} requested ($reqQty + $committed in bill) exceeds stock (${totalStock.toInt()}).';
                               });
                               return;
                             }
@@ -5669,6 +5928,8 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
         );
       },
     );
+    isProductDialogActive = false;
+    dialogSetState = null;
 
     if (result != null && mounted) {
       final List<dynamic>? rows = result['rows'] as List<dynamic>?;
@@ -5699,13 +5960,18 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
 
     if (delta > 0) {
       final code = row['code']?.toString() ?? '';
-      final productMatch = _products.where((p) => p['code']?.toString() == code);
+      final productMatch = _products.where(
+        (p) => p['code']?.toString() == code,
+      );
       if (productMatch.isNotEmpty) {
-        final totalStock = (productMatch.first['stockQty'] as num?)?.toDouble() ?? 0.0;
+        final totalStock =
+            (productMatch.first['stockQty'] as num?)?.toDouble() ?? 0.0;
         int totalCommitted = 0;
         for (int i = 0; i < _rows.length; i++) {
           if (_rows[i]['code']?.toString() == code) {
-            final q = i == index ? newQty : ((_rows[i]['qty'] as num?)?.toInt() ?? 0);
+            final q = i == index
+                ? newQty
+                : ((_rows[i]['qty'] as num?)?.toInt() ?? 0);
             final f = (_rows[i]['freeQty'] as num?)?.toInt() ?? 0;
             totalCommitted += (q + f);
           }
@@ -5723,7 +5989,9 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
         if (totalCommitted > totalStock) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Cannot increase quantity. Maximum available stock is ${totalStock.toInt()}.'),
+              content: Text(
+                'Cannot increase quantity. Maximum available stock is ${totalStock.toInt()}.',
+              ),
               backgroundColor: Colors.red,
               duration: const Duration(seconds: 2),
             ),
@@ -5744,8 +6012,9 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
     final productCode = row['code']?.toString() ?? '';
     final levelCode = row['levelCode']?.toString() ?? '';
     final existingIndex = _rows.indexWhere(
-      (entry) => entry['code']?.toString() == productCode &&
-                 (entry['levelCode']?.toString() ?? '') == levelCode,
+      (entry) =>
+          entry['code']?.toString() == productCode &&
+          (entry['levelCode']?.toString() ?? '') == levelCode,
     );
 
     if (existingIndex < 0) {
@@ -6884,18 +7153,7 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
 
   void _showPaymentMethodDialog(BuildContext context) {
     String? selectedMethod;
-    final paymentMethods = [
-      'Cash',
-      'Master Card',
-      'Visa Card',
-      'Amex Card',
-      'Credit',
-      'Cheque',
-      'Third Party Cheque',
-      'COD',
-      'Direct Deposit',
-      'Online',
-    ];
+    final paymentMethods = ['Cash', 'Credit', 'Cheque'];
 
     showDialog(
       context: context,
@@ -7013,12 +7271,19 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                           });
 
                           if (selection.isNotEmpty) {
-                            await _resolveSaleLocationForCustomer(selection['location']);
+                            await _resolveSaleLocationForCustomer(
+                              selection['location'],
+                            );
                           } else {
-                            final authProvider = Provider.of<AuthProvider>(context, listen: false);
+                            final authProvider = Provider.of<AuthProvider>(
+                              context,
+                              listen: false,
+                            );
                             if (mounted) {
                               setState(() {
-                                _saleLocationCode = authProvider.currentSalesman?.location ?? '01';
+                                _saleLocationCode =
+                                    authProvider.currentSalesman?.location ??
+                                    '01';
                               });
                             }
                           }
@@ -7072,9 +7337,12 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                 padding: const EdgeInsets.only(top: 8.0, left: 4.0),
                 child: Row(
                   children: [
-                    Icon(Icons.account_balance_wallet_rounded, 
-                      size: 16, 
-                      color: _customerOutstanding! > 0 ? Colors.red.shade400 : Colors.green.shade400
+                    Icon(
+                      Icons.account_balance_wallet_rounded,
+                      size: 16,
+                      color: _customerOutstanding! > 0
+                          ? Colors.red.shade400
+                          : Colors.green.shade400,
                     ),
                     const SizedBox(width: 6),
                     Text(
@@ -7082,7 +7350,9 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
-                        color: _customerOutstanding! > 0 ? Colors.red.shade400 : Colors.green.shade400,
+                        color: _customerOutstanding! > 0
+                            ? Colors.red.shade400
+                            : Colors.green.shade400,
                       ),
                     ),
                   ],
@@ -7095,8 +7365,8 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                   child: ElevatedButton.icon(
                     onPressed:
                         _selectedCustomer == null || _isRecallingSalesOrder
-                            ? null
-                            : _recallSalesOrderForInvoice,
+                        ? null
+                        : _recallSalesOrderForInvoice,
                     icon: _isRecallingSalesOrder
                         ? SizedBox(
                             width: 18,
@@ -7146,12 +7416,14 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                                 ListTile(
                                   leading: const Icon(Icons.storefront_rounded),
                                   title: const Text('Retail'),
-                                  onTap: () => Navigator.of(context).pop('Retail'),
+                                  onTap: () =>
+                                      Navigator.of(context).pop('Retail'),
                                 ),
                                 ListTile(
                                   leading: const Icon(Icons.local_mall_rounded),
                                   title: const Text('WholeSale'),
-                                  onTap: () => Navigator.of(context).pop('WholeSale'),
+                                  onTap: () =>
+                                      Navigator.of(context).pop('WholeSale'),
                                 ),
                                 const SizedBox(height: 8),
                               ],
@@ -7489,7 +7761,8 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final salesmanCode = authProvider.salesmanCode;
     final userName = authProvider.currentSalesman?.salesmanName ?? salesmanCode;
-    final locaCode = _saleLocationCode ?? authProvider.currentSalesman?.location ?? '01';
+    final locaCode =
+        _saleLocationCode ?? authProvider.currentSalesman?.location ?? '01';
     const costCenter = '000001';
     final tempDocNo = _getActiveTempDocNo();
     final effectiveDate = _selectedDate ?? DateTime.now();
@@ -7626,249 +7899,245 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
         userName: userName,
       );
 
+      // Helper function to get ledger details based on payment code
+      Map<String, String> getLedgerDetails(String paymentCode) {
+        switch (paymentCode) {
+          case '001': // Cash
+            return {
+              'ledgerCode1': '1020040003',
+              'doubleEntery1': 'DR',
+              'ledgerCode2': '4010010001',
+              'doubleEntery2': '',
+            };
+          case '007': // Cheque
+            return {
+              'ledgerCode1': '1020040005',
+              'doubleEntery1': 'DR',
+              'ledgerCode2': '4010010001',
+              'doubleEntery2': '',
+            };
+          case '006': // Credit
+            return {
+              'ledgerCode1': '1020020001',
+              'doubleEntery1': 'DR',
+              'ledgerCode2': '4010010002',
+              'doubleEntery2': '',
+            };
+          default:
+            return {
+              'ledgerCode1': '1020040003',
+              'doubleEntery1': 'DR',
+              'ledgerCode2': '4010010001',
+              'doubleEntery2': '',
+            };
+        }
+      }
+
+      // Helper function to build a single payment map
+      Map<String, dynamic> buildPaymentEntry({
+        required String methodId,
+        required double amount,
+        Map<String, dynamic>? details,
+      }) {
+        final paymentCode = _getPaymentCode(methodId);
+        final ledger = getLedgerDetails(paymentCode);
+
+        final cardCheque =
+            (details?['Card Number']?.toString() ??
+                    details?['Cheque Number']?.toString() ??
+                    details?['Deposit Number']?.toString() ??
+                    details?['COD Number']?.toString() ??
+                    '')
+                .trim();
+        final bankNm =
+            (details?['Bank']?.toString() ??
+                    details?['BankName']?.toString() ??
+                    '')
+                .trim();
+        final branchNm =
+            (details?['Branch']?.toString() ??
+                    details?['BranchName']?.toString() ??
+                    '')
+                .trim();
+        final bankCd = (details?['BankCode']?.toString() ?? '').trim();
+        final branchCd = (details?['BranchCode']?.toString() ?? '').trim();
+        final cardChequeLimited = cardCheque.length > 50
+            ? cardCheque.substring(0, 50)
+            : cardCheque;
+        final bankNameLimited = bankNm.length > 50
+            ? bankNm.substring(0, 50)
+            : bankNm;
+        final branchNameLimited = branchNm.length > 50
+            ? branchNm.substring(0, 50)
+            : branchNm;
+
+        final isChequeOrDeposit =
+            methodId.contains('cheque') || methodId == 'direct_deposit';
+
+        return {
+          'iid': 'IRE',
+          'paymentCode': paymentCode,
+          'amount': amount,
+          'cardChequeNo': cardChequeLimited,
+          'currencyCode': 'LKR',
+          'creditPeriod': paymentCode == '006' ? 30 : 0,
+          'bankCode': isChequeOrDeposit
+              ? (bankCd.isNotEmpty ? bankCd : bankNm)
+              : '',
+          'branchCode': isChequeOrDeposit
+              ? (branchCd.isNotEmpty ? branchCd : branchNm)
+              : '',
+          'bankName': isChequeOrDeposit ? bankNameLimited : '',
+          'branchName': isChequeOrDeposit ? branchNameLimited : '',
+          'chequeDate': isChequeOrDeposit && details?['Cheque Date'] != null
+              ? details!['Cheque Date'].toString()
+              : null,
+          'terminalId': '',
+          'ledgerCode1': ledger['ledgerCode1'] ?? '',
+          'doubleEntery1': ledger['doubleEntery1'] ?? 'DR',
+          'ledgerCode2': ledger['ledgerCode2'] ?? '',
+          'doubleEntery2': '',
+        };
+      }
+
       // Map payment methods to payments
-      // Handle split payments: first payment method + cash for remaining amount
       final payments = <Map<String, dynamic>>[];
       double totalPaid = 0.0;
-
-      // Check if there's a split payment (remaining amount to be paid by cash)
-      final enteredAmount =
-          (paymentDetails?['Amount'] as num?)?.toDouble() ?? 0.0;
-      final remainingAmount =
-          (paymentDetails?['RemainingAmount'] as num?)?.toDouble() ?? 0.0;
-      final hasRemainingCash = remainingAmount > 0.01;
       final selectedPaymentMethod = selectedPaymentMethods.isNotEmpty
           ? selectedPaymentMethods.first
           : null;
 
-      if (hasRemainingCash && selectedPaymentMethod != null) {
-        // Split payment: First payment method + Selected remaining payment method
-        final firstPaymentCode = _getPaymentCode(selectedPaymentMethod);
-        final firstAmount = enteredAmount;
-        final remainingPaymentMethodId =
-            paymentDetails?['RemainingPaymentMethod']?.toString() ?? 'cash';
-        final remainingPaymentCode = _getPaymentCode(remainingPaymentMethodId);
-        final remainingPaymentAmount = remainingAmount;
+      if (paymentDetails != null && selectedPaymentMethod != null) {
+        // Collect all payments recursively/iteratively from paymentDetails
+        String? currentMethod = selectedPaymentMethod;
+        Map<String, dynamic>? currentDetails = paymentDetails;
+        double remainingToAllocate = netAmount;
 
-        // Add first payment method entry
-        if (firstAmount > 0.01) {
-          final cardCheque =
-              (paymentDetails?['Card Number']?.toString() ??
-                      paymentDetails?['Cheque Number']?.toString() ??
-                      paymentDetails?['Deposit Number']?.toString() ??
-                      paymentDetails?['COD Number']?.toString() ??
-                      '')
-                  .trim();
-          final bankNm = (paymentDetails?['Bank']?.toString() ?? '').trim();
-          final branchNm = (paymentDetails?['Branch']?.toString() ?? '').trim();
-          final cardChequeLimited = cardCheque.length > 50
-              ? cardCheque.substring(0, 50)
-              : cardCheque;
-          final bankNameLimited = bankNm.length > 50
-              ? bankNm.substring(0, 50)
-              : bankNm;
-          final branchNameLimited = branchNm.length > 50
-              ? branchNm.substring(0, 50)
-              : branchNm;
-          payments.add({
-            'iid': 'IRE',
-            'paymentCode': firstPaymentCode,
-            'amount': firstAmount,
-            'cardChequeNo': cardChequeLimited,
-            'currencyCode': 'LKR',
-            'creditPeriod': firstPaymentCode == '006' ? 30 : 0,
-            'bankCode': paymentDetails?['Bank']?.toString() ?? '',
-            'branchCode': paymentDetails?['Branch']?.toString() ?? '',
-            'bankName': bankNameLimited,
-            'branchName': branchNameLimited,
-            'chequeDate': paymentDetails?['Cheque Date'] != null
-                ? paymentDetails!['Cheque Date'].toString()
-                : null,
-            'terminalId': '',
-            'ledgerCode1': '',
-            'doubleEntery1': '',
-            'ledgerCode2': '',
-            'doubleEntery2': '',
-          });
-          totalPaid += firstAmount;
+        while (currentMethod != null && remainingToAllocate > 0.001) {
+          final enteredAmt = (currentDetails?['Amount'] as num?)?.toDouble();
+          final remainingAmt =
+              (currentDetails?['RemainingAmount'] as num?)?.toDouble() ?? 0.0;
+          final nextMethod = currentDetails?['RemainingPaymentMethod']
+              ?.toString();
+          final nextDetails =
+              currentDetails?['RemainingPaymentDetails']
+                  as Map<String, dynamic>?;
+
+          double payAmount = remainingToAllocate;
+          if (enteredAmt != null && enteredAmt > 0) {
+            payAmount = enteredAmt;
+          } else if (remainingAmt > 0.001 && nextMethod != null) {
+            payAmount = (remainingToAllocate - remainingAmt).clamp(
+              0,
+              remainingToAllocate,
+            );
+          }
+
+          if (payAmount > remainingToAllocate) {
+            payAmount = remainingToAllocate;
+          }
+
+          if (payAmount > 0.001) {
+            payments.add(
+              buildPaymentEntry(
+                methodId: currentMethod,
+                amount: payAmount,
+                details: currentDetails,
+              ),
+            );
+            totalPaid += payAmount;
+            remainingToAllocate = (remainingToAllocate - payAmount).clamp(
+              0,
+              double.infinity,
+            );
+          }
+
+          if (remainingAmt > 0.001 &&
+              nextMethod != null &&
+              nextMethod.isNotEmpty) {
+            currentMethod = nextMethod;
+            currentDetails = nextDetails;
+          } else {
+            currentMethod = null;
+            currentDetails = null;
+          }
         }
 
-        // Add remaining payment method entry
-        if (remainingPaymentAmount > 0.01) {
-          // Get remaining payment details from RemainingPaymentDetails
-          final remainingDetails =
-              paymentDetails?['RemainingPaymentDetails']
-                  as Map<String, dynamic>? ??
-              {};
-          final remCardCheque =
-              (remainingPaymentMethodId != 'cash' &&
-                  remainingPaymentMethodId != 'cod')
-              ? (remainingDetails['Card Number']?.toString() ??
-                        remainingDetails['Cheque Number']?.toString() ??
-                        remainingDetails['Deposit Number']?.toString() ??
-                        remainingDetails['COD Number']?.toString() ??
-                        '')
-                    .trim()
-              : '';
-          final remCardChequeLimited = remCardCheque.length > 50
-              ? remCardCheque.substring(0, 50)
-              : remCardCheque;
-          final remBankNm = (remainingDetails['Bank']?.toString() ?? '').trim();
-          final remBranchNm = (remainingDetails['Branch']?.toString() ?? '')
-              .trim();
-          final remBankNameLimited = remBankNm.length > 50
-              ? remBankNm.substring(0, 50)
-              : remBankNm;
-          final remBranchNameLimited = remBranchNm.length > 50
-              ? remBranchNm.substring(0, 50)
-              : remBranchNm;
-
-          payments.add({
-            'iid': 'IRE',
-            'paymentCode': remainingPaymentCode,
-            'amount': remainingPaymentAmount,
-            'cardChequeNo': remCardChequeLimited,
-            'currencyCode': 'LKR',
-            'creditPeriod': remainingPaymentCode == '006' ? 30 : 0,
-            'bankCode':
-                remainingPaymentMethodId.contains('cheque') ||
-                    remainingPaymentMethodId == 'direct_deposit'
-                ? (remainingDetails['Bank']?.toString() ?? '')
-                : '',
-            'branchCode':
-                remainingPaymentMethodId.contains('cheque') ||
-                    remainingPaymentMethodId == 'direct_deposit'
-                ? (remainingDetails['Branch']?.toString() ?? '')
-                : '',
-            'bankName':
-                remainingPaymentMethodId.contains('cheque') ||
-                    remainingPaymentMethodId == 'direct_deposit'
-                ? remBankNameLimited
-                : '',
-            'branchName':
-                remainingPaymentMethodId.contains('cheque') ||
-                    remainingPaymentMethodId == 'direct_deposit'
-                ? remBranchNameLimited
-                : '',
-            'chequeDate':
-                remainingPaymentMethodId.contains('cheque') &&
-                    remainingDetails['Cheque Date'] != null
-                ? remainingDetails['Cheque Date'].toString()
-                : null,
-            'terminalId': '',
-            'ledgerCode1': '',
-            'doubleEntery1': '',
-            'ledgerCode2': '',
-            'doubleEntery2': '',
-          });
-          totalPaid += remainingPaymentAmount;
+        // If there is still remaining balance not covered by payments, add as Credit
+        if (remainingToAllocate > 0.01) {
+          payments.add(
+            buildPaymentEntry(
+              methodId: 'credit',
+              amount: remainingToAllocate,
+              details: null,
+            ),
+          );
+          totalPaid += remainingToAllocate;
         }
       } else {
-        // Original logic: Group payments by payment code (aggregate amounts)
+        // Group payments by payment code from rows or add single default payment
         final paymentMap = <String, double>{};
-
         for (
           int i = 0;
           i < _rows.length && i < selectedPaymentMethods.length;
           i++
         ) {
           final row = _rows[i];
-          final paymentMethod = selectedPaymentMethods[i];
-          final amount = (row['amount'] as num?)?.toDouble() ?? 0.0;
-
-          if (paymentMethod != null && amount > 0) {
-            final paymentCode = _getPaymentCode(paymentMethod);
-            totalPaid += amount;
-            paymentMap[paymentCode] = (paymentMap[paymentCode] ?? 0.0) + amount;
+          final pm = selectedPaymentMethods[i];
+          final amt = (row['amount'] as num?)?.toDouble() ?? 0.0;
+          if (pm != null && amt > 0) {
+            final pCode = _getPaymentCode(pm);
+            totalPaid += amt;
+            paymentMap[pCode] = (paymentMap[pCode] ?? 0.0) + amt;
           }
         }
 
-        // Convert payment map to payment entries
-        paymentMap.forEach((paymentCode, amount) {
-          final cardCheque =
-              (paymentDetails?['Card Number']?.toString() ??
-                      paymentDetails?['Cheque Number']?.toString() ??
-                      paymentDetails?['Deposit Number']?.toString() ??
-                      paymentDetails?['COD Number']?.toString() ??
-                      '')
-                  .trim();
-          final bankNm = (paymentDetails?['Bank']?.toString() ?? '').trim();
-          final branchNm = (paymentDetails?['Branch']?.toString() ?? '').trim();
-          final cardChequeLimited = cardCheque.length > 50
-              ? cardCheque.substring(0, 50)
-              : cardCheque;
-          final bankNameLimited = bankNm.length > 50
-              ? bankNm.substring(0, 50)
-              : bankNm;
-          final branchNameLimited = branchNm.length > 50
-              ? branchNm.substring(0, 50)
-              : branchNm;
-          payments.add({
-            'iid': 'IRE',
-            'paymentCode': paymentCode,
-            'amount': amount,
-            'cardChequeNo': cardChequeLimited,
-            'currencyCode': 'LKR',
-            'creditPeriod': paymentCode == '006' ? 30 : 0,
-            'bankCode': paymentDetails?['Bank']?.toString() ?? '',
-            'branchCode': paymentDetails?['Branch']?.toString() ?? '',
-            'bankName': bankNameLimited,
-            'branchName': branchNameLimited,
-            'chequeDate': paymentDetails?['Cheque Date'] != null
-                ? paymentDetails!['Cheque Date'].toString()
-                : null,
-            'terminalId': '',
-            'ledgerCode1': '',
-            'doubleEntery1': '',
-            'ledgerCode2': '',
-            'doubleEntery2': '',
+        if (paymentMap.isNotEmpty) {
+          paymentMap.forEach((pCode, amt) {
+            final methodId = pCode == '006'
+                ? 'credit'
+                : (pCode == '007' ? 'cheque' : 'cash');
+            payments.add(
+              buildPaymentEntry(
+                methodId: methodId,
+                amount: amt,
+                details: paymentDetails,
+              ),
+            );
           });
-        });
+        } else {
+          final methodId = selectedPaymentMethod ?? 'credit';
+          payments.add(
+            buildPaymentEntry(
+              methodId: methodId,
+              amount: netAmount,
+              details: paymentDetails,
+            ),
+          );
+          totalPaid += netAmount;
+        }
 
-        // If there's a remaining balance (credit), add it as credit payment
         final remainingBalance = netAmount - totalPaid;
         if (remainingBalance > 0.01) {
-          payments.add({
-            'iid': 'IRE',
-            'paymentCode': '006', // Credit
-            'amount': remainingBalance,
-            'cardChequeNo': '',
-            'currencyCode': 'LKR',
-            'creditPeriod': 30,
-            'bankCode': '',
-            'branchCode': '',
-            'bankName': '',
-            'branchName': '',
-            'chequeDate': null,
-            'terminalId': '',
-            'ledgerCode1': '',
-            'doubleEntery1': '',
-            'ledgerCode2': '',
-            'doubleEntery2': '',
-          });
+          payments.add(
+            buildPaymentEntry(
+              methodId: 'credit',
+              amount: remainingBalance,
+              details: null,
+            ),
+          );
         }
       }
 
       // If no payments at all, create a credit payment for full amount
       if (payments.isEmpty) {
-        payments.add({
-          'iid': 'IRE',
-          'paymentCode': '006', // Credit
-          'amount': netAmount,
-          'cardChequeNo': '',
-          'currencyCode': 'LKR',
-          'creditPeriod': 30,
-          'bankCode': '',
-          'branchCode': '',
-          'bankName': '',
-          'branchName': '',
-          'chequeDate': null,
-          'terminalId': '',
-          'ledgerCode1': '',
-          'doubleEntery1': '',
-          'ledgerCode2': '',
-          'doubleEntery2': '',
-        });
+        payments.add(
+          buildPaymentEntry(
+            methodId: 'credit',
+            amount: netAmount,
+            details: null,
+          ),
+        );
       }
 
       offlineTempTransactions = {
@@ -7883,11 +8152,15 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
         'locaCode': locaCode,
         'payments': payments,
       };
+      final stockLocation = _resolveSalesmanStockLocation();
+      debugPrint('📍 Passing tourCode as salesman stock reducing location: $stockLocation');
       offlinePostData = {
         'docAction': 'P',
         'customerCode': _selectedCustomer!['code']?.toString() ?? '',
         'customerName': _selectedCustomer!['name']?.toString(),
         'salesmanCode': salesmanCode,
+        'tourCode': stockLocation,
+        'stockLoca': stockLocation,
         'tempDocNo': tempDocNo,
         'locaCode': locaCode,
         'costCenter': costCenter,
@@ -7918,6 +8191,30 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
         'sonRecall':
             _recalledSalesOrderNo != null && _recalledSalesOrderNo!.isNotEmpty,
         'saveDocNo': _recalledSalesOrderNo ?? '',
+        'ledgerCode1': payments.isNotEmpty
+            ? (payments.first['ledgerCode1'] ?? '')
+            : '',
+        'doubleEntery1': payments.isNotEmpty
+            ? (payments.first['doubleEntery1'] ?? 'DR')
+            : '',
+        'ledgerCode2': payments.isNotEmpty
+            ? (payments.first['ledgerCode2'] ?? '')
+            : '',
+        'doubleEntery2': payments.isNotEmpty
+            ? (payments.first['doubleEntery2'] ?? '')
+            : '',
+        'bankCode': payments.isNotEmpty
+            ? (payments.first['bankCode'] ?? '')
+            : '',
+        'branchCode': payments.isNotEmpty
+            ? (payments.first['branchCode'] ?? '')
+            : '',
+        'bankName': payments.isNotEmpty
+            ? (payments.first['bankName'] ?? '')
+            : '',
+        'branchName': payments.isNotEmpty
+            ? (payments.first['branchName'] ?? '')
+            : '',
       };
 
       await ApiService.insertTempTransactions(
@@ -8027,9 +8324,14 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                   ),
                 ],
               ),
+              actionsAlignment: MainAxisAlignment.center,
+              actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               actions: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 12,
+                  runSpacing: 10,
                   children: [
                     FilledButton.icon(
                       onPressed: () => Navigator.of(dialogContext).pop(),
@@ -8039,12 +8341,11 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                         backgroundColor: Colors.green,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
+                          horizontal: 20,
                           vertical: 12,
                         ),
                       ),
                     ),
-                    const SizedBox(width: 12),
                     OutlinedButton.icon(
                       onPressed: () async {
                         Navigator.of(dialogContext).pop();
@@ -8082,7 +8383,7 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                       style: OutlinedButton.styleFrom(
                         foregroundColor: _accentColor,
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
+                          horizontal: 16,
                           vertical: 12,
                         ),
                       ),
@@ -8134,7 +8435,9 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
         final cleanError = e.toString().replaceAll('Exception: ', '').trim();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to post ($cleanError). Saved to sync: $localDocNo'),
+            content: Text(
+              'Failed to post ($cleanError). Saved to sync: $localDocNo',
+            ),
             backgroundColor: Colors.orange.shade800,
             duration: const Duration(seconds: 5),
             action: SnackBarAction(

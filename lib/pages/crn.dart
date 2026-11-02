@@ -2031,16 +2031,39 @@ class _CrnPageState extends State<CrnPage> with WidgetsBindingObserver {
 
       case 'cheque':
       case 'third_party_cheque':
-        // Cheque: Cheque Number (6 digits), Bank, Branch, Cheque Date, Amount
+        // Cheque: Cheque Number (6 digits), Bank (from gen_bank), Branch (from gen_bankbranch), Cheque Date, Amount
         final chequeNumberController = TextEditingController(
           text: existingDetails?['Cheque Number']?.toString() ?? '',
         );
-        final bankController = TextEditingController(
-          text: existingDetails?['Bank']?.toString() ?? '',
-        );
-        final branchController = TextEditingController(
-          text: existingDetails?['Branch']?.toString() ?? '',
-        );
+        List<Map<String, dynamic>> banksList = await ApiService.getBanks();
+        String? selectedBankCode = existingDetails?['BankCode']?.toString();
+        String? selectedBankName = existingDetails?['Bank']?.toString();
+        String? selectedBranchCode = existingDetails?['BranchCode']?.toString();
+        String? selectedBranchName = existingDetails?['Branch']?.toString();
+        List<Map<String, dynamic>> branchesList = [];
+        bool isLoadingBranches = false;
+
+        // Try to pre-populate branches if bank is already selected
+        if (selectedBankCode != null && selectedBankCode.isNotEmpty) {
+          branchesList = await ApiService.getBankBranches(
+            bankCode: selectedBankCode,
+          );
+        } else if (selectedBankName != null && selectedBankName.isNotEmpty) {
+          final match = banksList.firstWhere(
+            (b) =>
+                (b['BankName']?.toString().toLowerCase().trim() ?? '') ==
+                selectedBankName!.toLowerCase().trim(),
+            orElse: () => {},
+          );
+          if (match.isNotEmpty) {
+            selectedBankCode = match['BankCode']?.toString().trim();
+            selectedBankName = match['BankName']?.toString().trim();
+            branchesList = await ApiService.getBankBranches(
+              bankCode: selectedBankCode!,
+            );
+          }
+        }
+
         DateTime? chequeDate = existingDetails?['Cheque Date'] != null
             ? DateTime.tryParse(existingDetails!['Cheque Date'].toString())
             : DateTime.now();
@@ -2065,6 +2088,17 @@ class _CrnPageState extends State<CrnPage> with WidgetsBindingObserver {
               builder: (dialogContext) {
                 return StatefulBuilder(
                   builder: (dialogContext, setDialogState) {
+                    final validBankCode = banksList.any((b) =>
+                            (b['BankCode']?.toString().trim() ?? '') ==
+                            selectedBankCode)
+                        ? selectedBankCode
+                        : null;
+                    final validBranchCode = branchesList.any((b) =>
+                            (b['BranchCode']?.toString().trim() ?? '') ==
+                            selectedBranchCode)
+                        ? selectedBranchCode
+                        : null;
+
                     return AlertDialog(
                       title: Row(
                         children: [
@@ -2125,10 +2159,12 @@ class _CrnPageState extends State<CrnPage> with WidgetsBindingObserver {
                               ),
                             ),
                             const SizedBox(height: 16),
-                            TextField(
-                              controller: bankController,
+                            DropdownButtonFormField<String>(
+                              isExpanded: true,
+                              menuMaxHeight: 350,
+                              value: validBankCode,
                               decoration: InputDecoration(
-                                labelText: 'Bank',
+                                labelText: 'Bank *',
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
                                 ),
@@ -2136,12 +2172,63 @@ class _CrnPageState extends State<CrnPage> with WidgetsBindingObserver {
                                   Icons.account_balance_rounded,
                                 ),
                               ),
+                              hint: Text(
+                                banksList.isEmpty
+                                    ? 'Loading banks...'
+                                    : 'Select Bank',
+                              ),
+                              items: banksList.map((bank) {
+                                final bCode =
+                                    bank['BankCode']?.toString().trim() ?? '';
+                                final bName =
+                                    bank['BankName']?.toString().trim() ?? '';
+                                return DropdownMenuItem<String>(
+                                  value: bCode,
+                                  child: Text(
+                                    bName,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                );
+                              }).toList(),
+                              onChanged: (newBankCode) async {
+                                if (newBankCode == null) return;
+                                final bMatch = banksList.firstWhere(
+                                  (b) =>
+                                      (b['BankCode']?.toString().trim() ??
+                                          '') ==
+                                      newBankCode,
+                                  orElse: () => {
+                                    'BankCode': newBankCode,
+                                    'BankName': '',
+                                  },
+                                );
+                                setDialogState(() {
+                                  selectedBankCode = newBankCode;
+                                  selectedBankName =
+                                      bMatch['BankName']?.toString().trim() ??
+                                      '';
+                                  selectedBranchCode = null;
+                                  selectedBranchName = null;
+                                  isLoadingBranches = true;
+                                  branchesList = [];
+                                });
+                                final loadedBranches =
+                                    await ApiService.getBankBranches(
+                                      bankCode: newBankCode,
+                                    );
+                                setDialogState(() {
+                                  branchesList = loadedBranches;
+                                  isLoadingBranches = false;
+                                });
+                              },
                             ),
                             const SizedBox(height: 16),
-                            TextField(
-                              controller: branchController,
+                            DropdownButtonFormField<String>(
+                              isExpanded: true,
+                              menuMaxHeight: 350,
+                              value: validBranchCode,
                               decoration: InputDecoration(
-                                labelText: 'Branch',
+                                labelText: 'Branch *',
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
                                 ),
@@ -2149,6 +2236,58 @@ class _CrnPageState extends State<CrnPage> with WidgetsBindingObserver {
                                   Icons.location_on_rounded,
                                 ),
                               ),
+                              hint: Text(
+                                selectedBankCode == null
+                                    ? 'Select a bank first'
+                                    : (isLoadingBranches
+                                        ? 'Loading branches...'
+                                        : (branchesList.isEmpty
+                                            ? 'No branches found'
+                                            : 'Select Branch')),
+                              ),
+                              items: branchesList.map((branch) {
+                                final brCode =
+                                    branch['BranchCode']?.toString().trim() ??
+                                    '';
+                                final brName =
+                                    branch['BranchName']?.toString().trim() ??
+                                    '';
+                                return DropdownMenuItem<String>(
+                                  value: brCode,
+                                  child: Text(
+                                    brName,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                );
+                              }).toList(),
+                              onChanged:
+                                  (selectedBankCode == null ||
+                                          isLoadingBranches ||
+                                          branchesList.isEmpty)
+                                      ? null
+                                      : (newBranchCode) {
+                                        if (newBranchCode == null) return;
+                                        final brMatch = branchesList.firstWhere(
+                                          (b) =>
+                                              (b['BranchCode']
+                                                      ?.toString()
+                                                      .trim() ??
+                                                  '') ==
+                                              newBranchCode,
+                                          orElse: () => {
+                                            'BranchCode': newBranchCode,
+                                            'BranchName': '',
+                                          },
+                                        );
+                                        setDialogState(() {
+                                          selectedBranchCode = newBranchCode;
+                                          selectedBranchName =
+                                              brMatch['BranchName']
+                                                  ?.toString()
+                                                  .trim() ??
+                                              '';
+                                        });
+                                      },
                             ),
                             const SizedBox(height: 16),
                             InkWell(
@@ -2445,15 +2584,17 @@ class _CrnPageState extends State<CrnPage> with WidgetsBindingObserver {
                               });
                               return;
                             }
-                            if (bankController.text.trim().isEmpty) {
+                            if (selectedBankCode == null ||
+                                selectedBankCode!.trim().isEmpty) {
                               setDialogState(() {
-                                paymentError = 'Please enter bank name';
+                                paymentError = 'Please select a bank';
                               });
                               return;
                             }
-                            if (branchController.text.trim().isEmpty) {
+                            if (selectedBranchCode == null ||
+                                selectedBranchCode!.trim().isEmpty) {
                               setDialogState(() {
-                                paymentError = 'Please enter branch name';
+                                paymentError = 'Please select a branch';
                               });
                               return;
                             }
@@ -2496,8 +2637,10 @@ class _CrnPageState extends State<CrnPage> with WidgetsBindingObserver {
                             Navigator.of(dialogContext).pop({
                               'Cheque Number': chequeNumberController.text
                                   .trim(),
-                              'Bank': bankController.text.trim(),
-                              'Branch': branchController.text.trim(),
+                              'Bank': selectedBankName ?? '',
+                              'BankCode': selectedBankCode ?? '',
+                              'Branch': selectedBranchName ?? '',
+                              'BranchCode': selectedBranchCode ?? '',
                               'Cheque Date': DateFormat(
                                 'yyyy-MM-dd',
                               ).format(chequeDate!),
@@ -7040,8 +7183,12 @@ class _CrnPageState extends State<CrnPage> with WidgetsBindingObserver {
             'cardChequeNo': cardChequeLimited,
             'currencyCode': 'LKR',
             'creditPeriod': firstPaymentCode == '006' ? 30 : 0,
-            'bankCode': paymentDetails?['Bank']?.toString() ?? '',
-            'branchCode': paymentDetails?['Branch']?.toString() ?? '',
+            'bankCode': paymentDetails?['BankCode']?.toString() ??
+                paymentDetails?['Bank']?.toString() ??
+                '',
+            'branchCode': paymentDetails?['BranchCode']?.toString() ??
+                paymentDetails?['Branch']?.toString() ??
+                '',
             'bankName': bankNameLimited,
             'branchName': branchNameLimited,
             'chequeDate': paymentDetails?['Cheque Date'] != null
@@ -7096,12 +7243,16 @@ class _CrnPageState extends State<CrnPage> with WidgetsBindingObserver {
             'bankCode':
                 remainingPaymentMethodId.contains('cheque') ||
                     remainingPaymentMethodId == 'direct_deposit'
-                ? (remainingDetails['Bank']?.toString() ?? '')
+                ? (remainingDetails['BankCode']?.toString() ??
+                    remainingDetails['Bank']?.toString() ??
+                    '')
                 : '',
             'branchCode':
                 remainingPaymentMethodId.contains('cheque') ||
                     remainingPaymentMethodId == 'direct_deposit'
-                ? (remainingDetails['Branch']?.toString() ?? '')
+                ? (remainingDetails['BranchCode']?.toString() ??
+                    remainingDetails['Branch']?.toString() ??
+                    '')
                 : '',
             'bankName':
                 remainingPaymentMethodId.contains('cheque') ||
@@ -7173,8 +7324,12 @@ class _CrnPageState extends State<CrnPage> with WidgetsBindingObserver {
             'cardChequeNo': cardChequeLimited,
             'currencyCode': 'LKR',
             'creditPeriod': paymentCode == '006' ? 30 : 0,
-            'bankCode': paymentDetails?['Bank']?.toString() ?? '',
-            'branchCode': paymentDetails?['Branch']?.toString() ?? '',
+            'bankCode': paymentDetails?['BankCode']?.toString() ??
+                paymentDetails?['Bank']?.toString() ??
+                '',
+            'branchCode': paymentDetails?['BranchCode']?.toString() ??
+                paymentDetails?['Branch']?.toString() ??
+                '',
             'bankName': bankNameLimited,
             'branchName': branchNameLimited,
             'chequeDate': paymentDetails?['Cheque Date'] != null
