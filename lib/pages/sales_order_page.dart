@@ -2041,11 +2041,21 @@ class _SalesOrderPageState extends State<SalesOrderPage>
                             const SizedBox(height: 16),
                             InkWell(
                               onTap: () async {
+                                final now = DateTime.now();
+                                final initial = chequeDate ?? now;
+                                final effectiveFirstDate = DateTime(2020);
+                                final effectiveLastDate = DateTime(2050);
+                                final safeInitialDate = initial.isBefore(effectiveFirstDate)
+                                    ? effectiveFirstDate
+                                    : (initial.isAfter(effectiveLastDate)
+                                        ? effectiveLastDate
+                                        : initial);
+
                                 final picked = await showDatePicker(
                                   context: dialogContext,
-                                  initialDate: chequeDate ?? DateTime.now(),
-                                  firstDate: DateTime(2020),
-                                  lastDate: DateTime.now(),
+                                  initialDate: safeInitialDate,
+                                  firstDate: effectiveFirstDate,
+                                  lastDate: effectiveLastDate,
                                 );
                                 if (picked != null) {
                                   setDialogState(() {

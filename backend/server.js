@@ -5830,14 +5830,21 @@ app.get('/api/banks', async (req, res) => {
       return res.status(503).json({ success: false, error: 'Database not connected' });
     }
 
+    console.log('🔄 Fetching banks from gen_bank...');
+
     const result = await pool.request().query(`
       SELECT 
-        RTRIM(BankCode) AS BankCode, 
+        CASE 
+          WHEN LOWER(RTRIM(BankCode)) = 'b' THEN '7010' 
+          ELSE RTRIM(BankCode) 
+        END AS BankCode, 
         RTRIM(BankName) AS BankName 
       FROM gen_bank 
       WHERE BankName IS NOT NULL AND RTRIM(BankName) <> ''
       ORDER BY BankName ASC
     `);
+
+    console.log(`✅ Loaded ${result.recordset.length} banks from database`);
 
     res.json({
       success: true,
@@ -5851,12 +5858,17 @@ app.get('/api/banks', async (req, res) => {
 
 // Get list of bank branches from gen_bankbranch (optionally filtered by bankCode)
 app.get('/api/bank-branches', async (req, res) => {
+  const { bankCode } = req.query;
+  const rawBankCode = bankCode ? bankCode.toString().trim() : '';
+  const filterInfo = rawBankCode ? ` for BankCode: ${rawBankCode}` : '';
+
   try {
     if (!pool) {
       return res.status(503).json({ success: false, error: 'Database not connected' });
     }
 
-    const { bankCode } = req.query;
+    console.log(`🔄 Fetching bank branches from gen_bankbranch${filterInfo}...`);
+
     const request = pool.request();
 
     let query = `
@@ -5868,21 +5880,28 @@ app.get('/api/bank-branches', async (req, res) => {
       WHERE BranchName IS NOT NULL AND RTRIM(BranchName) <> ''
     `;
 
-    if (bankCode && bankCode.toString().trim().length > 0) {
-      request.input('bankCode', sql.VarChar(20), bankCode.toString().trim());
-      query += ` AND RTRIM(BankCode) = @bankCode`;
+    if (rawBankCode.length > 0) {
+      // Support Bank of Ceylon mapping: in gen_bankbranch BOC has code 7010 (some legacy systems use 'b')
+      if (rawBankCode.toLowerCase() === 'b' || rawBankCode === '7010') {
+        query += ` AND (RTRIM(BankCode) = '7010' OR LOWER(RTRIM(BankCode)) = 'b')`;
+      } else {
+        request.input('bankCode', sql.VarChar(20), rawBankCode);
+        query += ` AND RTRIM(BankCode) = @bankCode`;
+      }
     }
 
     query += ` ORDER BY BranchName ASC`;
 
     const result = await request.query(query);
 
+    console.log(`✅ Loaded ${result.recordset.length} bank branches from database${filterInfo}`);
+
     res.json({
       success: true,
       branches: result.recordset
     });
   } catch (err) {
-    console.error('❌ Error fetching bank branches from gen_bankbranch:', err);
+    console.error(`❌ Error fetching bank branches from gen_bankbranch${filterInfo}:`, err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
