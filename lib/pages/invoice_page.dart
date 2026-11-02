@@ -2133,6 +2133,9 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
           branchesList = await ApiService.getBankBranches(
             bankCode: selectedBankCode,
           );
+          debugPrint(
+            '✅ Pre-loaded ${branchesList.length} branches for BankCode: $selectedBankCode',
+          );
         } else if (selectedBankName != null && selectedBankName.isNotEmpty) {
           final match = banksList.firstWhere(
             (b) =>
@@ -2145,6 +2148,9 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
             selectedBankName = match['BankName']?.toString().trim();
             branchesList = await ApiService.getBankBranches(
               bankCode: selectedBankCode!,
+            );
+            debugPrint(
+              '✅ Pre-loaded ${branchesList.length} branches for $selectedBankName',
             );
           }
         }
@@ -2292,11 +2298,14 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                                     'BankName': '',
                                   },
                                 );
+                                final bName =
+                                    bMatch['BankName']?.toString().trim() ?? '';
+                                debugPrint(
+                                  '🏦 Selected bank: $bName (Code: $newBankCode)',
+                                );
                                 setDialogState(() {
                                   selectedBankCode = newBankCode;
-                                  selectedBankName =
-                                      bMatch['BankName']?.toString().trim() ??
-                                      '';
+                                  selectedBankName = bName;
                                   selectedBranchCode = null;
                                   selectedBranchName = null;
                                   isLoadingBranches = true;
@@ -2306,6 +2315,9 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                                     await ApiService.getBankBranches(
                                       bankCode: newBankCode,
                                     );
+                                debugPrint(
+                                  '✅ Loaded ${loadedBranches.length} branches for $bName',
+                                );
                                 setDialogState(() {
                                   branchesList = loadedBranches;
                                   isLoadingBranches = false;
@@ -2369,24 +2381,38 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                                           'BranchName': '',
                                         },
                                       );
+                                      final brName =
+                                          brMatch['BranchName']
+                                              ?.toString()
+                                              .trim() ??
+                                          '';
+                                      debugPrint(
+                                        '📍 Selected branch: $brName (Code: $newBranchCode)',
+                                      );
                                       setDialogState(() {
                                         selectedBranchCode = newBranchCode;
-                                        selectedBranchName =
-                                            brMatch['BranchName']
-                                                ?.toString()
-                                                .trim() ??
-                                            '';
+                                        selectedBranchName = brName;
                                       });
                                     },
                             ),
                             const SizedBox(height: 16),
                             InkWell(
                               onTap: () async {
+                                final now = DateTime.now();
+                                final initial = chequeDate ?? now;
+                                final effectiveFirstDate = DateTime(2020);
+                                final effectiveLastDate = DateTime(2050);
+                                final safeInitialDate = initial.isBefore(effectiveFirstDate)
+                                    ? effectiveFirstDate
+                                    : (initial.isAfter(effectiveLastDate)
+                                        ? effectiveLastDate
+                                        : initial);
+
                                 final picked = await showDatePicker(
                                   context: dialogContext,
-                                  initialDate: chequeDate ?? DateTime.now(),
-                                  firstDate: DateTime(2020),
-                                  lastDate: DateTime.now(),
+                                  initialDate: safeInitialDate,
+                                  firstDate: effectiveFirstDate,
+                                  lastDate: effectiveLastDate,
                                 );
                                 if (picked != null) {
                                   setDialogState(() {
@@ -3625,21 +3651,458 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
     return result.isEmpty ? null : result;
   }
 
-  Future<void> _openPostInvoiceDialog() async {
-    final List<Map<String, dynamic>> paymentMethods = [
-      {'id': 'cash', 'name': 'Cash', 'requiresDetails': false},
-      {'id': 'credit', 'name': 'Credit', 'requiresDetails': true},
-      {'id': 'cheque', 'name': 'Cheque', 'requiresDetails': true},
+  // Dialog to add a single payment method (Cash, Cheque, Credit, Direct Deposit)
+  Future<Map<String, dynamic>?> _showAddPaymentMethodDialog({
+    required BuildContext parentContext,
+    required double remainingAmount,
+    required double totalInvoiceAmount,
+  }) async {
+    final theme = Theme.of(parentContext);
+    final paymentMethods = [
+      {'id': 'cash', 'name': 'Cash'},
+      {'id': 'cheque', 'name': 'Cheque'},
+      {'id': 'credit', 'name': 'Credit'},
     ];
 
-    // Single payment method for all items
-    String? selectedPaymentMethod;
-    // Payment details structure
-    Map<String, dynamic>? paymentDetails;
+    String selectedMethodId = 'cash';
+    final amountController = TextEditingController(
+      text: remainingAmount > 0.001
+          ? remainingAmount.toStringAsFixed(2)
+          : totalInvoiceAmount.toStringAsFixed(2),
+    );
 
+    final chequeNumberController = TextEditingController();
+    final creditPeriodController = TextEditingController(text: '30');
+
+    List<Map<String, dynamic>> banksList = await ApiService.getBanks();
+    String? selectedBankCode;
+    String? selectedBankName;
+    String? selectedBranchCode;
+    String? selectedBranchName;
+    List<Map<String, dynamic>> branchesList = [];
+    bool isLoadingBranches = false;
+    DateTime chequeDate = DateTime.now();
+    String? dialogError;
+
+    if (!parentContext.mounted) return null;
+
+    return showDialog<Map<String, dynamic>>(
+      context: parentContext,
+      barrierDismissible: false,
+      builder: (dialogCtx) {
+        return StatefulBuilder(
+          builder: (dialogCtx, setModalState) {
+            final isCheque = selectedMethodId == 'cheque';
+            final isCredit = selectedMethodId == 'credit';
+
+            final validBankCode = banksList.any(
+              (b) =>
+                  (b['BankCode']?.toString().trim() ?? '') == selectedBankCode,
+            )
+                ? selectedBankCode
+                : null;
+            final validBranchCode = branchesList.any(
+              (b) =>
+                  (b['BranchCode']?.toString().trim() ?? '') ==
+                  selectedBranchCode,
+            )
+                ? selectedBranchCode
+                : null;
+
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: Row(
+                children: [
+                  Icon(_getPaymentIcon(selectedMethodId), color: _accentColor),
+                  const SizedBox(width: 10),
+                  Text(
+                    isCheque
+                        ? 'Add Cheque Payment'
+                        : (isCredit
+                            ? 'Add Credit Payment'
+                            : 'Add Cash Payment'),
+                  ),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (dialogError != null) ...[
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.errorContainer,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          dialogError!,
+                          style: TextStyle(
+                            color: theme.colorScheme.onErrorContainer,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ],
+
+                    // Payment Method Dropdown
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedMethodId,
+                      decoration: InputDecoration(
+                        labelText: 'Payment Method *',
+                        prefixIcon: Icon(
+                          _getPaymentIcon(selectedMethodId),
+                          color: _accentColor,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      items: paymentMethods.map((m) {
+                        return DropdownMenuItem<String>(
+                          value: m['id'],
+                          child: Text(m['name']!),
+                        );
+                      }).toList(),
+                      onChanged: (newVal) {
+                        if (newVal == null) return;
+                        setModalState(() {
+                          selectedMethodId = newVal;
+                          dialogError = null;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 14),
+
+                    // Amount field
+                    TextField(
+                      controller: amountController,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(
+                          RegExp(r'^\d*\.?\d{0,2}'),
+                        ),
+                      ],
+                      decoration: InputDecoration(
+                        labelText: 'Amount (Rs.) *',
+                        prefixIcon: const Icon(Icons.attach_money_rounded),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        helperText: remainingAmount > 0.001
+                            ? 'Remaining to fulfill: Rs. ${remainingAmount.toStringAsFixed(2)}'
+                            : null,
+                      ),
+                    ),
+
+                    // Cheque specific fields (6-digit Cheque No, Bank from gen_bank, Branch from gen_bankbranch, Cheque Date)
+                    if (isCheque) ...[
+                      const SizedBox(height: 14),
+                      TextField(
+                        controller: chequeNumberController,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                          LengthLimitingTextInputFormatter(6),
+                        ],
+                        decoration: InputDecoration(
+                          labelText: 'Cheque Number (6 digits) *',
+                          prefixIcon: const Icon(Icons.numbers_rounded),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+
+                      // Bank Dropdown (loaded from gen_bank)
+                      DropdownButtonFormField<String>(
+                        isExpanded: true,
+                        initialValue: validBankCode,
+                        decoration: InputDecoration(
+                          labelText: 'Bank *',
+                          prefixIcon:
+                              const Icon(Icons.account_balance_rounded),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        hint: Text(
+                          banksList.isEmpty
+                              ? 'Loading banks...'
+                              : 'Select Bank',
+                        ),
+                        items: banksList.map((b) {
+                          final code =
+                              b['BankCode']?.toString().trim() ?? '';
+                          final name =
+                              b['BankName']?.toString().trim() ?? '';
+                          return DropdownMenuItem<String>(
+                            value: code,
+                            child: Text(
+                              name,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (newBankCode) async {
+                          if (newBankCode == null) return;
+                          final bMatch = banksList.firstWhere(
+                            (b) =>
+                                (b['BankCode']?.toString().trim() ?? '') ==
+                                newBankCode,
+                            orElse: () => {
+                              'BankCode': newBankCode,
+                              'BankName': '',
+                            },
+                          );
+                          final bName =
+                              bMatch['BankName']?.toString().trim() ?? '';
+                          debugPrint(
+                            '🏦 Selected bank: $bName (Code: $newBankCode)',
+                          );
+                          setModalState(() {
+                            selectedBankCode = newBankCode;
+                            selectedBankName = bName;
+                            selectedBranchCode = null;
+                            selectedBranchName = null;
+                            isLoadingBranches = true;
+                            branchesList = [];
+                          });
+                          final loadedBranches =
+                              await ApiService.getBankBranches(
+                            bankCode: newBankCode,
+                          );
+                          debugPrint(
+                            '✅ Loaded ${loadedBranches.length} branches for $bName',
+                          );
+                          setModalState(() {
+                            branchesList = loadedBranches;
+                            isLoadingBranches = false;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 14),
+
+                      // Branch Dropdown (loaded from gen_bankbranch filtered by selected BankCode)
+                      DropdownButtonFormField<String>(
+                        isExpanded: true,
+                        menuMaxHeight: 350,
+                        initialValue: validBranchCode,
+                        decoration: InputDecoration(
+                          labelText: 'Branch *',
+                          prefixIcon:
+                              const Icon(Icons.location_on_rounded),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        hint: Text(
+                          selectedBankCode == null
+                              ? 'Select a bank first'
+                              : (isLoadingBranches
+                                  ? 'Loading branches...'
+                                  : (branchesList.isEmpty
+                                      ? 'No branches found'
+                                      : 'Select Branch')),
+                        ),
+                        items: branchesList.map((br) {
+                          final code =
+                              br['BranchCode']?.toString().trim() ?? '';
+                          final name =
+                              br['BranchName']?.toString().trim() ?? '';
+                          return DropdownMenuItem<String>(
+                            value: code,
+                            child: Text(
+                              name,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (selectedBankCode == null ||
+                                isLoadingBranches ||
+                                branchesList.isEmpty)
+                            ? null
+                            : (newBranchCode) {
+                                if (newBranchCode == null) return;
+                                final brMatch = branchesList.firstWhere(
+                                  (b) =>
+                                      (b['BranchCode']
+                                              ?.toString()
+                                              .trim() ??
+                                          '') ==
+                                      newBranchCode,
+                                  orElse: () => {
+                                    'BranchCode': newBranchCode,
+                                    'BranchName': '',
+                                  },
+                                );
+                                final brName =
+                                    brMatch['BranchName']?.toString().trim() ??
+                                        '';
+                                debugPrint(
+                                  '📍 Selected branch: $brName (Code: $newBranchCode)',
+                                );
+                                setModalState(() {
+                                  selectedBranchCode = newBranchCode;
+                                  selectedBranchName = brName;
+                                });
+                              },
+                      ),
+                      const SizedBox(height: 14),
+
+                      // Cheque Date (supports future dates up to 2050)
+                      InkWell(
+                        onTap: () async {
+                          final effectiveFirstDate = DateTime(2020);
+                          final effectiveLastDate = DateTime(2050);
+                          final picked = await showDatePicker(
+                            context: dialogCtx,
+                            initialDate: chequeDate,
+                            firstDate: effectiveFirstDate,
+                            lastDate: effectiveLastDate,
+                          );
+                          if (picked != null) {
+                            setModalState(() {
+                              chequeDate = picked;
+                            });
+                          }
+                        },
+                        borderRadius: BorderRadius.circular(12),
+                        child: InputDecorator(
+                          decoration: InputDecoration(
+                            labelText: 'Cheque Date *',
+                            prefixIcon:
+                                const Icon(Icons.calendar_today_rounded),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: Text(
+                            DateFormat('yyyy-MM-dd').format(chequeDate),
+                            style: theme.textTheme.bodyMedium,
+                          ),
+                        ),
+                      ),
+                    ],
+
+                    // Credit specific fields
+                    if (isCredit) ...[
+                      const SizedBox(height: 14),
+                      TextField(
+                        controller: creditPeriodController,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                        ],
+                        decoration: InputDecoration(
+                          labelText: 'Credit Period (Days) *',
+                          prefixIcon: const Icon(Icons.timer_rounded),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogCtx).pop(null),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: _accentColor,
+                  ),
+                  onPressed: () {
+                    final enteredAmount =
+                        double.tryParse(amountController.text.trim()) ?? 0.0;
+                    if (enteredAmount <= 0) {
+                      setModalState(() {
+                        dialogError =
+                            'Please enter a valid amount greater than 0';
+                      });
+                      return;
+                    }
+
+                    if (isCheque) {
+                      final chkNo = chequeNumberController.text.trim();
+                      if (chkNo.length != 6) {
+                        setModalState(() {
+                          dialogError =
+                              'Cheque number must be exactly 6 digits';
+                        });
+                        return;
+                      }
+                      if (selectedBankCode == null ||
+                          selectedBankCode!.isEmpty) {
+                        setModalState(() {
+                          dialogError = 'Please select a bank';
+                        });
+                        return;
+                      }
+                      if (selectedBranchCode == null ||
+                          selectedBranchCode!.isEmpty) {
+                        setModalState(() {
+                          dialogError = 'Please select a branch';
+                        });
+                        return;
+                      }
+                    }
+
+                    final methodName = paymentMethods.firstWhere(
+                      (m) => m['id'] == selectedMethodId,
+                      orElse: () => {'name': selectedMethodId},
+                    )['name']!;
+
+                    final detailsMap = <String, dynamic>{
+                      'Amount': enteredAmount,
+                    };
+
+                    if (isCheque) {
+                      detailsMap['Cheque Number'] =
+                          chequeNumberController.text.trim();
+                      detailsMap['Bank'] = selectedBankName ?? '';
+                      detailsMap['BankCode'] = selectedBankCode ?? '';
+                      detailsMap['Branch'] = selectedBranchName ?? '';
+                      detailsMap['BranchCode'] = selectedBranchCode ?? '';
+                      detailsMap['Cheque Date'] =
+                          DateFormat('yyyy-MM-dd').format(chequeDate);
+                    } else if (isCredit) {
+                      detailsMap['Credit Period'] =
+                          int.tryParse(creditPeriodController.text.trim()) ??
+                              30;
+                    }
+
+                    Navigator.of(dialogCtx).pop({
+                      'methodId': selectedMethodId,
+                      'methodName': methodName,
+                      'amount': enteredAmount,
+                      'details': detailsMap,
+                    });
+                  },
+                  child: const Text('Add Payment'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _openPostInvoiceDialog() async {
+    final List<Map<String, dynamic>> configuredPayments = [];
     String? errorMessage;
-
-    final amountController = TextEditingController();
     final generalDetailsController = TextEditingController();
 
     if (_rows.isEmpty) {
@@ -3658,7 +4121,8 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
     }
 
     final total = _calculateTotal();
-    amountController.text = total.toStringAsFixed(2);
+    final amountController =
+        TextEditingController(text: total.toStringAsFixed(2));
 
     await showDialog<void>(
       context: context,
@@ -3680,20 +4144,20 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                   final theme = Theme.of(themedContext);
                   return Dialog(
                     insetPadding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 40,
+                      horizontal: 16,
+                      vertical: 24,
                     ),
                     child: Container(
                       constraints: BoxConstraints(
-                        maxWidth: MediaQuery.of(context).size.width * 0.9,
-                        maxHeight: MediaQuery.of(context).size.height * 0.85,
+                        maxWidth: 550,
+                        maxHeight: MediaQuery.of(context).size.height * 0.9,
                       ),
                       child: Column(
                         mainAxisSize: MainAxisSize.max,
                         children: [
                           // Modern Header
                           Container(
-                            padding: const EdgeInsets.all(24),
+                            padding: const EdgeInsets.all(20),
                             decoration: BoxDecoration(
                               gradient: LinearGradient(
                                 colors: [
@@ -3763,432 +4227,149 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                           // Scrollable Content
                           Expanded(
                             child: SingleChildScrollView(
-                              padding: const EdgeInsets.all(24),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 20,
+                              ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
-                                  // Payment Method Selection Section
-                                  Container(
-                                    padding: const EdgeInsets.all(20),
-                                    decoration: BoxDecoration(
-                                      color: theme
-                                          .colorScheme
-                                          .surfaceContainerHighest,
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color: theme.colorScheme.outline
-                                            .withValues(alpha: 0.2),
-                                      ),
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
+                                  // Multi-Payment Method Selection Section (supports 3 cheques, 2 cheques + 1 cash, etc.)
+                                  Builder(
+                                    builder: (context) {
+                                      final totalPaid = configuredPayments.fold<double>(
+                                        0.0,
+                                        (sum, p) =>
+                                            sum +
+                                            ((p['amount'] as num?)
+                                                    ?.toDouble() ??
+                                                0.0),
+                                      );
+                                      final remainingBalance = (total -
+                                              totalPaid)
+                                          .clamp(0.0, double.infinity);
+                                      final isFulfilled =
+                                          (total - totalPaid).abs() <= 0.01;
+                                      final isOverpaid =
+                                          totalPaid > total + 0.01;
+
+                                      return Container(
+                                        padding: const EdgeInsets.all(20),
+                                        decoration: BoxDecoration(
+                                          color: theme
+                                              .colorScheme
+                                              .surfaceContainerHighest,
+                                          borderRadius:
+                                              BorderRadius.circular(16),
+                                          border: Border.all(
+                                            color: theme.colorScheme.outline
+                                                .withValues(alpha: 0.2),
+                                          ),
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.stretch,
                                           children: [
-                                            Icon(
-                                              Icons.payment_rounded,
-                                              color: _accentColor,
-                                              size: 24,
-                                            ),
-                                            const SizedBox(width: 12),
-                                            Text(
-                                              'Payment Method',
-                                              style: theme.textTheme.titleLarge
-                                                  ?.copyWith(
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 16),
-                                        DropdownButtonFormField<String>(
-                                          isExpanded: true,
-                                          initialValue: selectedPaymentMethod,
-                                          decoration: InputDecoration(
-                                            labelText: 'Select Payment Method',
-                                            hintText: 'Choose Payment',
-                                            border: OutlineInputBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(12),
-                                            ),
-                                            filled: true,
-                                            fillColor: Colors.white,
-                                            prefixIcon: Icon(
-                                              selectedPaymentMethod != null
-                                                  ? _getPaymentIcon(
-                                                      selectedPaymentMethod!,
-                                                    )
-                                                  : Icons.payment_rounded,
-                                              color: _accentColor,
-                                            ),
-                                          ),
-                                          items: paymentMethods.map((method) {
-                                            return DropdownMenuItem<String>(
-                                              value: method['id'],
-                                              child: Row(
-                                                children: [
-                                                  Icon(
-                                                    _getPaymentIcon(
-                                                      method['id'],
+                                            Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment
+                                                      .spaceBetween,
+                                              children: [
+                                                Row(
+                                                  children: [
+                                                    Icon(
+                                                      Icons.payments_rounded,
+                                                      color: _accentColor,
+                                                      size: 24,
                                                     ),
-                                                    size: 20,
-                                                    color: _accentColor,
-                                                  ),
-                                                  const SizedBox(width: 12),
-                                                  Expanded(
-                                                    child: Text(
-                                                      method['name'],
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                      style: const TextStyle(
-                                                        fontSize: 16,
-                                                      ),
+                                                    const SizedBox(width: 10),
+                                                    Text(
+                                                      'Payment Methods',
+                                                      style: theme
+                                                          .textTheme
+                                                          .titleMedium
+                                                          ?.copyWith(
+                                                            fontWeight:
+                                                                FontWeight
+                                                                    .bold,
+                                                          ),
                                                     ),
-                                                  ),
-                                                ],
-                                              ),
-                                            );
-                                          }).toList(),
-                                          onChanged: (value) {
-                                            setState(() {
-                                              selectedPaymentMethod = value;
-                                              paymentDetails =
-                                                  null; // Clear previous details
-                                              errorMessage =
-                                                  null; // Clear error
-                                            });
-                                          },
-                                        ),
-                                        // Enter Payment Details Button
-                                        if (selectedPaymentMethod != null) ...[
-                                          const SizedBox(height: 16),
-                                          FilledButton.icon(
-                                            onPressed: () async {
-                                              final details =
-                                                  await _showPaymentDetailsPopup(
-                                                    context,
-                                                    selectedPaymentMethod!,
-                                                    paymentMethods.firstWhere(
-                                                      (m) =>
-                                                          m['id'] ==
-                                                          selectedPaymentMethod,
-                                                    ),
-                                                    total,
-                                                    paymentDetails,
-                                                    paymentMethods,
-                                                  );
-                                              if (details != null &&
-                                                  context.mounted) {
-                                                setState(() {
-                                                  paymentDetails = details;
-                                                });
-                                              }
-                                            },
-                                            icon: Icon(
-                                              paymentDetails != null
-                                                  ? Icons.check_circle_rounded
-                                                  : Icons.edit_rounded,
-                                            ),
-                                            label: Text(
-                                              paymentDetails != null
-                                                  ? 'Payment Details Entered'
-                                                  : 'Enter Payment Details',
-                                            ),
-                                            style: FilledButton.styleFrom(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    vertical: 14,
-                                                  ),
-                                              backgroundColor:
-                                                  paymentDetails != null
-                                                  ? _accentColor.withValues(
-                                                      alpha: 0.12,
-                                                    )
-                                                  : _accentColor,
-                                              foregroundColor:
-                                                  paymentDetails != null
-                                                  ? _accentColor
-                                                  : Colors.white,
-                                            ),
-                                          ),
-                                          // Display entered payment details
-                                          if (paymentDetails != null) ...[
-                                            const SizedBox(height: 12),
-                                            Container(
-                                              padding: const EdgeInsets.all(12),
-                                              decoration: BoxDecoration(
-                                                color: theme
-                                                    .colorScheme
-                                                    .surfaceContainerHighest,
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                                border: Border.all(
-                                                  color: theme
-                                                      .colorScheme
-                                                      .outline
-                                                      .withValues(alpha: 0.2),
+                                                  ],
                                                 ),
-                                              ),
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  Text(
-                                                    'Payment Details:',
-                                                    style: theme
-                                                        .textTheme
-                                                        .labelMedium
-                                                        ?.copyWith(
-                                                          fontWeight:
-                                                              FontWeight.w600,
-                                                        ),
-                                                  ),
-                                                  const SizedBox(height: 8),
-                                                  ...paymentDetails!.entries.map((
-                                                    entry,
-                                                  ) {
-                                                    if (entry.value == null ||
-                                                        entry.value
-                                                            .toString()
-                                                            .isEmpty) {
-                                                      return const SizedBox.shrink();
-                                                    }
-                                                    return Padding(
-                                                      padding:
-                                                          const EdgeInsets.only(
-                                                            bottom: 4,
+                                                if (configuredPayments
+                                                    .isNotEmpty)
+                                                  Container(
+                                                    padding:
+                                                        const EdgeInsets
+                                                            .symmetric(
+                                                      horizontal: 10,
+                                                      vertical: 4,
+                                                    ),
+                                                    decoration: BoxDecoration(
+                                                      color: _accentColor
+                                                          .withValues(
+                                                            alpha: 0.12,
                                                           ),
-                                                      child: Row(
-                                                        crossAxisAlignment:
-                                                            CrossAxisAlignment
-                                                                .start,
-                                                        children: [
-                                                          Text(
-                                                            '${entry.key}: ',
-                                                            style: theme
-                                                                .textTheme
-                                                                .bodySmall
-                                                                ?.copyWith(
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .w600,
-                                                                ),
-                                                          ),
-                                                          Expanded(
-                                                            child: Text(
-                                                              entry.value
-                                                                  .toString(),
-                                                              style: theme
-                                                                  .textTheme
-                                                                  .bodySmall,
-                                                            ),
-                                                          ),
-                                                        ],
+                                                      borderRadius:
+                                                          BorderRadius
+                                                              .circular(12),
+                                                    ),
+                                                    child: Text(
+                                                      '${configuredPayments.length} Added',
+                                                      style: TextStyle(
+                                                        color: _accentColor,
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                        fontSize: 12,
                                                       ),
-                                                    );
-                                                  }),
-                                                ],
-                                              ),
+                                                    ),
+                                                  ),
+                                              ],
                                             ),
-                                          ],
-                                        ],
-                                      ],
-                                    ),
-                                  ),
-                                  // Payment Breakdown Section (if split payment)
-                                  if (paymentDetails != null) ...[
-                                    Builder(
-                                      builder: (context) {
-                                        final remainingAmount =
-                                            (paymentDetails!['RemainingAmount']
-                                                    as num?)
-                                                ?.toDouble() ??
-                                            0.0;
-                                        final hasRemaining =
-                                            remainingAmount > 0.01;
-                                        if (!hasRemaining) {
-                                          return const SizedBox.shrink();
-                                        }
+                                            const SizedBox(height: 16),
 
-                                        final breakdownItems =
-                                            <Map<String, dynamic>>[];
-                                        String? curMethod =
-                                            selectedPaymentMethod;
-                                        Map<String, dynamic>? curDetails =
-                                            paymentDetails;
-                                        double unalloc = total;
-
-                                        while (curMethod != null &&
-                                            unalloc > 0.001) {
-                                          final entAmt =
-                                              (curDetails?['Amount'] as num?)
-                                                  ?.toDouble();
-                                          final remAmt =
-                                              (curDetails?['RemainingAmount']
-                                                      as num?)
-                                                  ?.toDouble() ??
-                                              0.0;
-                                          final nxtMethod =
-                                              curDetails?['RemainingPaymentMethod']
-                                                  ?.toString();
-                                          final nxtDetails =
-                                              curDetails?['RemainingPaymentDetails']
-                                                  as Map<String, dynamic>?;
-
-                                          double amt = unalloc;
-                                          if (entAmt != null && entAmt > 0) {
-                                            amt = entAmt;
-                                          } else if (remAmt > 0.001 &&
-                                              nxtMethod != null) {
-                                            amt = (unalloc - remAmt).clamp(
-                                              0,
-                                              unalloc,
-                                            );
-                                          }
-                                          if (amt > unalloc) amt = unalloc;
-
-                                          final mName = paymentMethods
-                                              .firstWhere(
-                                                (m) => m['id'] == curMethod,
-                                                orElse: () => {
-                                                  'name':
-                                                      curMethod ?? 'Payment',
-                                                },
-                                              )['name'];
-
-                                          breakdownItems.add({
-                                            'name': mName,
-                                            'amount': amt,
-                                          });
-
-                                          unalloc = (unalloc - amt).clamp(
-                                            0,
-                                            double.infinity,
-                                          );
-
-                                          if (remAmt > 0.001 &&
-                                              nxtMethod != null &&
-                                              nxtMethod.isNotEmpty) {
-                                            curMethod = nxtMethod;
-                                            curDetails = nxtDetails;
-                                          } else {
-                                            curMethod = null;
-                                            curDetails = null;
-                                          }
-                                        }
-
-                                        if (unalloc > 0.01) {
-                                          breakdownItems.add({
-                                            'name': 'Credit (Balance)',
-                                            'amount': unalloc,
-                                          });
-                                        }
-
-                                        return Column(
-                                          children: [
-                                            const SizedBox(height: 24),
+                                            // Amount Summary Header
                                             Container(
-                                              padding: const EdgeInsets.all(16),
+                                              padding: const EdgeInsets.all(14),
                                               decoration: BoxDecoration(
-                                                color: theme
-                                                    .colorScheme
-                                                    .primaryContainer
-                                                    .withValues(alpha: 0.3),
+                                                color: Colors.white,
                                                 borderRadius:
                                                     BorderRadius.circular(12),
                                                 border: Border.all(
-                                                  color: _accentColor
-                                                      .withValues(alpha: 0.3),
+                                                  color: isFulfilled
+                                                      ? Colors.green.shade400
+                                                      : theme
+                                                          .colorScheme
+                                                          .outline
+                                                          .withValues(
+                                                            alpha: 0.15,
+                                                          ),
                                                 ),
                                               ),
                                               child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
                                                 children: [
-                                                  Row(
-                                                    children: [
-                                                      Icon(
-                                                        Icons.payment_rounded,
-                                                        color: _accentColor,
-                                                        size: 20,
-                                                      ),
-                                                      const SizedBox(width: 8),
-                                                      Text(
-                                                        'Payment Breakdown',
-                                                        style: theme
-                                                            .textTheme
-                                                            .titleMedium
-                                                            ?.copyWith(
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .bold,
-                                                              color: theme
-                                                                  .colorScheme
-                                                                  .primary,
-                                                            ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                  const SizedBox(height: 12),
-                                                  ...breakdownItems.map((item) {
-                                                    return Padding(
-                                                      padding:
-                                                          const EdgeInsets.only(
-                                                            bottom: 8,
-                                                          ),
-                                                      child: Row(
-                                                        mainAxisAlignment:
-                                                            MainAxisAlignment
-                                                                .spaceBetween,
-                                                        children: [
-                                                          Text(
-                                                            item['name']
-                                                                .toString(),
-                                                            style: theme
-                                                                .textTheme
-                                                                .bodyMedium
-                                                                ?.copyWith(
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .w600,
-                                                                ),
-                                                          ),
-                                                          Text(
-                                                            'Rs. ${(item['amount'] as double).toStringAsFixed(2)}',
-                                                            style: theme
-                                                                .textTheme
-                                                                .bodyMedium
-                                                                ?.copyWith(
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .w600,
-                                                                ),
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    );
-                                                  }),
-                                                  const Divider(height: 24),
                                                   Row(
                                                     mainAxisAlignment:
                                                         MainAxisAlignment
                                                             .spaceBetween,
                                                     children: [
-                                                      Text(
-                                                        'Total',
-                                                        style: theme
-                                                            .textTheme
-                                                            .titleMedium
-                                                            ?.copyWith(
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .bold,
-                                                              color: theme
-                                                                  .colorScheme
-                                                                  .primary,
-                                                            ),
+                                                      Flexible(
+                                                        child: Text(
+                                                          'Invoice Total:',
+                                                          style: theme
+                                                              .textTheme
+                                                              .bodyMedium
+                                                              ?.copyWith(
+                                                                color: Colors
+                                                                    .grey
+                                                                    .shade700,
+                                                              ),
+                                                          overflow:
+                                                              TextOverflow
+                                                                  .ellipsis,
+                                                        ),
                                                       ),
+                                                      const SizedBox(width: 8),
                                                       Text(
                                                         'Rs. ${total.toStringAsFixed(2)}',
                                                         style: theme
@@ -4198,21 +4379,506 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                                                               fontWeight:
                                                                   FontWeight
                                                                       .bold,
-                                                              color: theme
-                                                                  .colorScheme
-                                                                  .primary,
                                                             ),
                                                       ),
                                                     ],
                                                   ),
+                                                  const SizedBox(height: 6),
+                                                  Row(
+                                                    mainAxisAlignment:
+                                                        MainAxisAlignment
+                                                            .spaceBetween,
+                                                    children: [
+                                                      Flexible(
+                                                        child: Text(
+                                                          'Total Paid:',
+                                                          style: theme
+                                                              .textTheme
+                                                              .bodyMedium
+                                                              ?.copyWith(
+                                                                color: Colors
+                                                                    .grey
+                                                                    .shade700,
+                                                              ),
+                                                          overflow:
+                                                              TextOverflow
+                                                                  .ellipsis,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 8),
+                                                      Text(
+                                                        'Rs. ${totalPaid.toStringAsFixed(2)}',
+                                                        style: TextStyle(
+                                                          fontSize: 16,
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                          color: isFulfilled
+                                                              ? Colors.green
+                                                                  .shade700
+                                                              : (isOverpaid
+                                                                  ? Colors.orange
+                                                                      .shade800
+                                                                  : _accentColor),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  const Divider(height: 16),
+                                                  Row(
+                                                    mainAxisAlignment:
+                                                        MainAxisAlignment
+                                                            .spaceBetween,
+                                                    children: [
+                                                      Flexible(
+                                                        child: Text(
+                                                          'Balance Remaining:',
+                                                          style: theme
+                                                              .textTheme
+                                                              .bodyMedium
+                                                              ?.copyWith(
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w600,
+                                                              ),
+                                                          overflow:
+                                                              TextOverflow
+                                                                  .ellipsis,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 8),
+                                                      if (isFulfilled)
+                                                        Container(
+                                                          padding:
+                                                              const EdgeInsets
+                                                                  .symmetric(
+                                                            horizontal: 8,
+                                                            vertical: 3,
+                                                          ),
+                                                          decoration:
+                                                              BoxDecoration(
+                                                            color: Colors.green
+                                                                .shade100,
+                                                            borderRadius:
+                                                                BorderRadius
+                                                                    .circular(
+                                                                      8,
+                                                                    ),
+                                                          ),
+                                                          child: Row(
+                                                            mainAxisSize:
+                                                                MainAxisSize
+                                                                    .min,
+                                                            children: [
+                                                              Icon(
+                                                                Icons
+                                                                    .check_circle_rounded,
+                                                                size: 14,
+                                                                color: Colors
+                                                                    .green
+                                                                    .shade800,
+                                                              ),
+                                                              const SizedBox(
+                                                                width: 4,
+                                                              ),
+                                                              Text(
+                                                                'Fully Paid',
+                                                                style:
+                                                                    TextStyle(
+                                                                  fontSize: 12,
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .bold,
+                                                                  color: Colors
+                                                                      .green
+                                                                      .shade800,
+                                                                ),
+                                                              ),
+                                                            ],
+                                                          ),
+                                                        )
+                                                      else
+                                                        Text(
+                                                          'Rs. ${remainingBalance.toStringAsFixed(2)}',
+                                                          style: TextStyle(
+                                                            fontSize: 16,
+                                                            fontWeight:
+                                                                FontWeight
+                                                                    .bold,
+                                                            color: theme
+                                                                .colorScheme
+                                                                .error,
+                                                          ),
+                                                        ),
+                                                    ],
+                                                  ),
+                                                  if (isOverpaid) ...[
+                                                    const SizedBox(height: 6),
+                                                    Text(
+                                                      '⚠️ Overpaid by Rs. ${(totalPaid - total).toStringAsFixed(2)}',
+                                                      style: TextStyle(
+                                                        fontSize: 12,
+                                                        color: Colors.orange
+                                                            .shade800,
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                      ),
+                                                    ),
+                                                  ],
                                                 ],
                                               ),
                                             ),
+                                            const SizedBox(height: 16),
+
+                                            // List of configured payments
+                                            if (configuredPayments.isEmpty) ...[
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                  vertical: 24,
+                                                  horizontal: 16,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.white
+                                                      .withValues(alpha: 0.6),
+                                                  borderRadius:
+                                                      BorderRadius.circular(12),
+                                                  border: Border.all(
+                                                    color: Colors.grey.shade300,
+                                                  ),
+                                                ),
+                                                child: Column(
+                                                  children: [
+                                                    Icon(
+                                                      Icons
+                                                          .account_balance_wallet_outlined,
+                                                      size: 40,
+                                                      color:
+                                                          Colors.grey.shade400,
+                                                    ),
+                                                    const SizedBox(height: 8),
+                                                    Text(
+                                                      'No payments added yet',
+                                                      style: theme
+                                                          .textTheme
+                                                          .bodyMedium
+                                                          ?.copyWith(
+                                                            color: Colors
+                                                                .grey.shade700,
+                                                            fontWeight:
+                                                                FontWeight.w600,
+                                                          ),
+                                                    ),
+                                                    const SizedBox(height: 4),
+                                                    Text(
+                                                      'Add cheques, cash, or credit to fulfill the price',
+                                                      style: theme
+                                                          .textTheme
+                                                          .bodySmall
+                                                          ?.copyWith(
+                                                            color: Colors
+                                                                .grey.shade500,
+                                                          ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ] else ...[
+                                              ...configuredPayments
+                                                  .asMap()
+                                                  .entries
+                                                  .map((entry) {
+                                                final index = entry.key;
+                                                final p = entry.value;
+                                                final methodId =
+                                                    p['methodId']?.toString() ??
+                                                        'cash';
+                                                final methodName =
+                                                    p['methodName']
+                                                            ?.toString() ??
+                                                        'Payment';
+                                                final amt = (p['amount']
+                                                            as num?)
+                                                        ?.toDouble() ??
+                                                    0.0;
+                                                final details = p['details']
+                                                        as Map<String, dynamic>? ??
+                                                    {};
+
+                                                String subtitle = '';
+                                                if (methodId == 'cheque') {
+                                                  final chkNo =
+                                                      details['Cheque Number'] ??
+                                                          '';
+                                                  final bank =
+                                                      details['Bank'] ?? '';
+                                                  final branch =
+                                                      details['Branch'] ?? '';
+                                                  final date =
+                                                      details['Cheque Date'] ??
+                                                          '';
+                                                  subtitle =
+                                                      'Cheque #$chkNo • $bank ($branch)\nDate: $date';
+                                                } else if (methodId ==
+                                                    'credit') {
+                                                  subtitle =
+                                                      'Credit Period: ${details['Credit Period'] ?? '30'} days';
+                                                } else {
+                                                  subtitle = 'Cash Payment';
+                                                }
+
+                                                return Container(
+                                                  margin: const EdgeInsets.only(
+                                                    bottom: 10,
+                                                  ),
+                                                  padding:
+                                                      const EdgeInsets.all(12),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.white,
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                      12,
+                                                    ),
+                                                    border: Border.all(
+                                                      color:
+                                                          Colors.grey.shade200,
+                                                    ),
+                                                    boxShadow: [
+                                                      BoxShadow(
+                                                        color: Colors.black
+                                                            .withValues(
+                                                          alpha: 0.03,
+                                                        ),
+                                                        blurRadius: 4,
+                                                        offset: const Offset(
+                                                          0,
+                                                          2,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  child: Row(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .center,
+                                                    children: [
+                                                      Container(
+                                                        padding:
+                                                            const EdgeInsets
+                                                                .all(8),
+                                                        decoration:
+                                                            BoxDecoration(
+                                                          color: _accentColor
+                                                              .withValues(
+                                                            alpha: 0.1,
+                                                          ),
+                                                          borderRadius:
+                                                              BorderRadius
+                                                                  .circular(
+                                                                    8,
+                                                                  ),
+                                                        ),
+                                                        child: Icon(
+                                                          _getPaymentIcon(
+                                                            methodId,
+                                                          ),
+                                                          color: _accentColor,
+                                                          size: 20,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(
+                                                        width: 8,
+                                                      ),
+                                                      Expanded(
+                                                        child: Column(
+                                                          crossAxisAlignment:
+                                                              CrossAxisAlignment
+                                                                  .start,
+                                                          children: [
+                                                            Row(
+                                                              mainAxisAlignment:
+                                                                  MainAxisAlignment
+                                                                      .spaceBetween,
+                                                              children: [
+                                                                Flexible(
+                                                                  child: Text(
+                                                                    methodName,
+                                                                    style: theme
+                                                                        .textTheme
+                                                                        .bodyMedium
+                                                                        ?.copyWith(
+                                                                          fontWeight:
+                                                                              FontWeight
+                                                                                  .bold,
+                                                                        ),
+                                                                    overflow:
+                                                                        TextOverflow
+                                                                            .ellipsis,
+                                                                  ),
+                                                                ),
+                                                                const SizedBox(
+                                                                  width: 6,
+                                                                ),
+                                                                Text(
+                                                                  'Rs. ${amt.toStringAsFixed(2)}',
+                                                                  style:
+                                                                      TextStyle(
+                                                                    fontSize:
+                                                                        14,
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .bold,
+                                                                    color:
+                                                                        _accentColor,
+                                                                  ),
+                                                                ),
+                                                              ],
+                                                            ),
+                                                            const SizedBox(
+                                                              height: 3,
+                                                            ),
+                                                            Text(
+                                                              subtitle,
+                                                              style: theme
+                                                                  .textTheme
+                                                                  .bodySmall
+                                                                  ?.copyWith(
+                                                                    color: Colors
+                                                                        .grey
+                                                                        .shade600,
+                                                                    height:
+                                                                        1.25,
+                                                                  ),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                      const SizedBox(
+                                                        width: 4,
+                                                      ),
+                                                      IconButton(
+                                                        constraints:
+                                                            const BoxConstraints(),
+                                                        padding:
+                                                            const EdgeInsets
+                                                                .all(6),
+                                                        icon: const Icon(
+                                                          Icons
+                                                              .delete_outline_rounded,
+                                                          color: Colors
+                                                              .redAccent,
+                                                          size: 20,
+                                                        ),
+                                                        tooltip: 'Remove',
+                                                        onPressed: () {
+                                                          setState(() {
+                                                            configuredPayments
+                                                                .removeAt(
+                                                              index,
+                                                            );
+                                                            errorMessage = null;
+                                                          });
+                                                        },
+                                                      ),
+                                                    ],
+                                                  ),
+                                                );
+                                              }),
+                                            ],
+
+                                            const SizedBox(height: 12),
+
+                                            // Add Payment Button
+                                            if (!isFulfilled) ...[
+                                              FilledButton.icon(
+                                                onPressed: () async {
+                                                  setState(() {
+                                                    errorMessage = null;
+                                                  });
+                                                  final newPayment =
+                                                      await _showAddPaymentMethodDialog(
+                                                    parentContext: context,
+                                                    remainingAmount:
+                                                        remainingBalance,
+                                                    totalInvoiceAmount: total,
+                                                  );
+                                                  if (newPayment != null) {
+                                                    setState(() {
+                                                      configuredPayments
+                                                          .add(newPayment);
+                                                      errorMessage = null;
+                                                    });
+                                                  }
+                                                },
+                                                icon: const Icon(
+                                                  Icons
+                                                      .add_circle_outline_rounded,
+                                                ),
+                                                label: Text(
+                                                  configuredPayments.isEmpty
+                                                      ? 'Add Payment Method (Rs. ${total.toStringAsFixed(2)})'
+                                                      : 'Add Another Payment (Rs. ${remainingBalance.toStringAsFixed(2)} remaining)',
+                                                ),
+                                                style: FilledButton.styleFrom(
+                                                  padding: const EdgeInsets
+                                                      .symmetric(vertical: 14),
+                                                  backgroundColor: _accentColor,
+                                                  foregroundColor:
+                                                      Colors.white,
+                                                  shape:
+                                                      RoundedRectangleBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                      12,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ] else ...[
+                                              OutlinedButton.icon(
+                                                onPressed: () async {
+                                                  final newPayment =
+                                                      await _showAddPaymentMethodDialog(
+                                                    parentContext: context,
+                                                    remainingAmount: 0.0,
+                                                    totalInvoiceAmount: total,
+                                                  );
+                                                  if (newPayment != null) {
+                                                    setState(() {
+                                                      configuredPayments
+                                                          .add(newPayment);
+                                                      errorMessage = null;
+                                                    });
+                                                  }
+                                                },
+                                                icon: const Icon(
+                                                  Icons.add_rounded,
+                                                ),
+                                                label: const Text(
+                                                  'Add Another Payment',
+                                                ),
+                                                style:
+                                                    OutlinedButton.styleFrom(
+                                                  padding: const EdgeInsets
+                                                      .symmetric(vertical: 12),
+                                                  foregroundColor: _accentColor,
+                                                  side: BorderSide(
+                                                    color: _accentColor,
+                                                  ),
+                                                  shape:
+                                                      RoundedRectangleBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                      12,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
                                           ],
-                                        );
-                                      },
-                                    ),
-                                  ],
+                                        ),
+                                      );
+                                    },
+                                  ),
                                   const SizedBox(height: 24),
                                   // Invoice Items Section
                                   Text(
@@ -4559,57 +5225,87 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                                 const SizedBox(width: 12),
                                 Expanded(
                                   flex: 2,
-                                  child: FilledButton.icon(
-                                    onPressed: () async {
-                                      // Validate payment method is selected
-                                      if (selectedPaymentMethod == null) {
-                                        setState(() {
-                                          errorMessage =
-                                              'Please select a payment method';
-                                        });
-                                        return;
-                                      }
+                                  child: Builder(
+                                    builder: (context) {
+                                      final totalPaid =
+                                          configuredPayments.fold<double>(
+                                        0.0,
+                                        (sum, p) =>
+                                            sum +
+                                            ((p['amount'] as num?)
+                                                    ?.toDouble() ??
+                                                0.0),
+                                      );
+                                      final remainingBalance =
+                                          (total - totalPaid)
+                                              .clamp(0.0, double.infinity);
+                                      final isFulfilled =
+                                          (total - totalPaid).abs() <= 0.01;
 
-                                      // Validate payment details are entered
-                                      if (paymentDetails == null) {
-                                        setState(() {
-                                          errorMessage =
-                                              'Please enter payment details';
-                                        });
-                                        return;
-                                      }
+                                      return FilledButton.icon(
+                                        onPressed: () async {
+                                          // Validate payment methods added
+                                          if (configuredPayments.isEmpty) {
+                                            setState(() {
+                                              errorMessage =
+                                                  'Please add at least one payment method to fulfill the invoice price';
+                                            });
+                                            return;
+                                          }
 
-                                      // Create a list with the same payment method for all items
-                                      final paymentMethodsList =
-                                          List<String?>.filled(
+                                          // Validate invoice amount is fulfilled
+                                          if (!isFulfilled &&
+                                              totalPaid < total) {
+                                            setState(() {
+                                              errorMessage =
+                                                  'Please fulfill the remaining balance of Rs. ${remainingBalance.toStringAsFixed(2)} before posting';
+                                            });
+                                            return;
+                                          }
+
+                                          final primaryMethod =
+                                              configuredPayments
+                                                      .first['methodId']
+                                                      ?.toString() ??
+                                                  'cash';
+                                          final paymentMethodsList =
+                                              List<String?>.filled(
                                             _rows.length,
-                                            selectedPaymentMethod,
+                                            primaryMethod,
                                           );
 
-                                      // Post invoice using stored procedure
-                                      Navigator.of(
-                                        context,
-                                      ).pop(); // Close dialog first
-                                      await _postInvoice(
-                                        this.context,
-                                        paymentMethodsList,
-                                        paymentDetails,
+                                          // Post invoice using stored procedure
+                                          Navigator.of(
+                                            context,
+                                          ).pop(); // Close dialog first
+                                          await _postInvoice(
+                                            this.context,
+                                            paymentMethodsList,
+                                            configuredPayments
+                                                .first['details'],
+                                            customPaymentsList:
+                                                configuredPayments,
+                                          );
+                                        },
+                                        icon: const Icon(
+                                          Icons.check_circle_rounded,
+                                        ),
+                                        label: const Text('Post Invoice'),
+                                        style: FilledButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 16,
+                                          ),
+                                          backgroundColor: isFulfilled
+                                              ? Colors.green.shade600
+                                              : _accentColor,
+                                          foregroundColor: Colors.white,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(12),
+                                          ),
+                                        ),
                                       );
                                     },
-                                    icon: const Icon(
-                                      Icons.check_circle_rounded,
-                                    ),
-                                    label: const Text('Post Invoice'),
-                                    style: FilledButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 16,
-                                      ),
-                                      backgroundColor: _accentColor,
-                                      foregroundColor: Colors.white,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                    ),
                                   ),
                                 ),
                               ],
@@ -7806,8 +8502,9 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
   Future<void> _postInvoice(
     BuildContext context,
     List<String?> selectedPaymentMethods,
-    Map<String, dynamic>? paymentDetails,
-  ) async {
+    Map<String, dynamic>? paymentDetails, {
+    List<Map<String, dynamic>>? customPaymentsList,
+  }) async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
     if (_rows.isEmpty) {
@@ -8007,7 +8704,23 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
           ? selectedPaymentMethods.first
           : null;
 
-      if (paymentDetails != null && selectedPaymentMethod != null) {
+      if (customPaymentsList != null && customPaymentsList.isNotEmpty) {
+        for (final item in customPaymentsList) {
+          final mId = item['methodId']?.toString() ?? 'cash';
+          final amt = (item['amount'] as num?)?.toDouble() ?? 0.0;
+          final d = item['details'] as Map<String, dynamic>?;
+          if (amt > 0.001) {
+            payments.add(
+              buildPaymentEntry(
+                methodId: mId,
+                amount: amt,
+                details: d,
+              ),
+            );
+            totalPaid += amt;
+          }
+        }
+      } else if (paymentDetails != null && selectedPaymentMethod != null) {
         // Collect all payments recursively/iteratively from paymentDetails
         String? currentMethod = selectedPaymentMethod;
         Map<String, dynamic>? currentDetails = paymentDetails;
@@ -8203,18 +8916,38 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
         'doubleEntery2': payments.isNotEmpty
             ? (payments.first['doubleEntery2'] ?? '')
             : '',
-        'bankCode': payments.isNotEmpty
-            ? (payments.first['bankCode'] ?? '')
-            : '',
-        'branchCode': payments.isNotEmpty
-            ? (payments.first['branchCode'] ?? '')
-            : '',
-        'bankName': payments.isNotEmpty
-            ? (payments.first['bankName'] ?? '')
-            : '',
-        'branchName': payments.isNotEmpty
-            ? (payments.first['branchName'] ?? '')
-            : '',
+        'bankCode': payments
+            .firstWhere(
+              (p) =>
+                  (p['bankCode'] != null &&
+                      p['bankCode'].toString().isNotEmpty),
+              orElse: () => payments.isNotEmpty ? payments.first : {},
+            )['bankCode'] ??
+            '',
+        'branchCode': payments
+            .firstWhere(
+              (p) =>
+                  (p['branchCode'] != null &&
+                      p['branchCode'].toString().isNotEmpty),
+              orElse: () => payments.isNotEmpty ? payments.first : {},
+            )['branchCode'] ??
+            '',
+        'bankName': payments
+            .firstWhere(
+              (p) =>
+                  (p['bankName'] != null &&
+                      p['bankName'].toString().isNotEmpty),
+              orElse: () => payments.isNotEmpty ? payments.first : {},
+            )['bankName'] ??
+            '',
+        'branchName': payments
+            .firstWhere(
+              (p) =>
+                  (p['branchName'] != null &&
+                      p['branchName'].toString().isNotEmpty),
+              orElse: () => payments.isNotEmpty ? payments.first : {},
+            )['branchName'] ??
+            '',
       };
 
       await ApiService.insertTempTransactions(

@@ -2048,6 +2048,9 @@ class _CrnPageState extends State<CrnPage> with WidgetsBindingObserver {
           branchesList = await ApiService.getBankBranches(
             bankCode: selectedBankCode,
           );
+          debugPrint(
+            '✅ Pre-loaded ${branchesList.length} branches for BankCode: $selectedBankCode',
+          );
         } else if (selectedBankName != null && selectedBankName.isNotEmpty) {
           final match = banksList.firstWhere(
             (b) =>
@@ -2060,6 +2063,9 @@ class _CrnPageState extends State<CrnPage> with WidgetsBindingObserver {
             selectedBankName = match['BankName']?.toString().trim();
             branchesList = await ApiService.getBankBranches(
               bankCode: selectedBankCode!,
+            );
+            debugPrint(
+              '✅ Pre-loaded ${branchesList.length} branches for $selectedBankName',
             );
           }
         }
@@ -2202,11 +2208,14 @@ class _CrnPageState extends State<CrnPage> with WidgetsBindingObserver {
                                     'BankName': '',
                                   },
                                 );
+                                final bName =
+                                    bMatch['BankName']?.toString().trim() ?? '';
+                                debugPrint(
+                                  '🏦 Selected bank: $bName (Code: $newBankCode)',
+                                );
                                 setDialogState(() {
                                   selectedBankCode = newBankCode;
-                                  selectedBankName =
-                                      bMatch['BankName']?.toString().trim() ??
-                                      '';
+                                  selectedBankName = bName;
                                   selectedBranchCode = null;
                                   selectedBranchName = null;
                                   isLoadingBranches = true;
@@ -2216,6 +2225,9 @@ class _CrnPageState extends State<CrnPage> with WidgetsBindingObserver {
                                     await ApiService.getBankBranches(
                                       bankCode: newBankCode,
                                     );
+                                debugPrint(
+                                  '✅ Loaded ${loadedBranches.length} branches for $bName',
+                                );
                                 setDialogState(() {
                                   branchesList = loadedBranches;
                                   isLoadingBranches = false;
@@ -2279,24 +2291,38 @@ class _CrnPageState extends State<CrnPage> with WidgetsBindingObserver {
                                             'BranchName': '',
                                           },
                                         );
+                                        final brName =
+                                            brMatch['BranchName']
+                                                ?.toString()
+                                                .trim() ??
+                                            '';
+                                        debugPrint(
+                                          '📍 Selected branch: $brName (Code: $newBranchCode)',
+                                        );
                                         setDialogState(() {
                                           selectedBranchCode = newBranchCode;
-                                          selectedBranchName =
-                                              brMatch['BranchName']
-                                                  ?.toString()
-                                                  .trim() ??
-                                              '';
+                                          selectedBranchName = brName;
                                         });
                                       },
                             ),
                             const SizedBox(height: 16),
                             InkWell(
                               onTap: () async {
+                                final now = DateTime.now();
+                                final initial = chequeDate ?? now;
+                                final effectiveFirstDate = DateTime(2020);
+                                final effectiveLastDate = DateTime(2050);
+                                final safeInitialDate = initial.isBefore(effectiveFirstDate)
+                                    ? effectiveFirstDate
+                                    : (initial.isAfter(effectiveLastDate)
+                                        ? effectiveLastDate
+                                        : initial);
+
                                 final picked = await showDatePicker(
                                   context: dialogContext,
-                                  initialDate: chequeDate ?? DateTime.now(),
-                                  firstDate: DateTime(2020),
-                                  lastDate: DateTime.now(),
+                                  initialDate: safeInitialDate,
+                                  firstDate: effectiveFirstDate,
+                                  lastDate: effectiveLastDate,
                                 );
                                 if (picked != null) {
                                   setDialogState(() {

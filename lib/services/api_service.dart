@@ -904,12 +904,15 @@ class ApiService {
   }) async {
     try {
       final queryParams = <String>[];
-      if (location.isNotEmpty)
+      if (location.isNotEmpty) {
         queryParams.add('location=${Uri.encodeQueryComponent(location)}');
-      if (costCenter.isNotEmpty)
+      }
+      if (costCenter.isNotEmpty) {
         queryParams.add('costCenter=${Uri.encodeQueryComponent(costCenter)}');
-      if (date.isNotEmpty)
+      }
+      if (date.isNotEmpty) {
         queryParams.add('date=${Uri.encodeQueryComponent(date)}');
+      }
 
       final queryString = queryParams.isNotEmpty
           ? '?${queryParams.join('&')}'
@@ -930,7 +933,7 @@ class ApiService {
         throw Exception('Failed to fetch outstanding: ${response.statusCode}');
       }
     } catch (e) {
-      print('❌ API: Exception fetching customer outstanding: $e');
+      debugPrint('❌ API: Exception fetching customer outstanding: $e');
       return 0.0;
     }
   }
@@ -1687,13 +1690,28 @@ class ApiService {
   }
 
   static List<Map<String, dynamic>>? _cachedBanks;
-  static final Map<String, List<Map<String, dynamic>>> _cachedBranchesByBank = {};
+  static final Map<String, List<Map<String, dynamic>>> _cachedBranchesByBank =
+      {};
+
+  static List<Map<String, dynamic>> _normalizeBanksList(List rawList) {
+    return rawList.map((e) {
+      final map = Map<String, dynamic>.from(e as Map);
+      final code = (map['BankCode']?.toString() ?? '').trim();
+      final name = (map['BankName']?.toString() ?? '').toLowerCase();
+      // Bank of Ceylon official clearing code in gen_bankbranch is 7010 (legacy gen_bank row has 'b')
+      if (code.toLowerCase() == 'b' || (code.isEmpty && name.contains('ceylon'))) {
+        map['BankCode'] = '7010';
+      }
+      return map;
+    }).toList();
+  }
 
   // Fetch all banks from gen_bank
   static Future<List<Map<String, dynamic>>> getBanks({
     bool forceRefresh = false,
   }) async {
     if (!forceRefresh && _cachedBanks != null && _cachedBanks!.isNotEmpty) {
+      debugPrint('📦 Loaded ${_cachedBanks!.length} banks from cache');
       return List<Map<String, dynamic>>.from(_cachedBanks!);
     }
 
@@ -1704,29 +1722,31 @@ class ApiService {
         if (cachedString != null && cachedString.isNotEmpty) {
           try {
             final decoded = json.decode(cachedString) as List;
-            _cachedBanks = decoded
-                .map((e) => Map<String, dynamic>.from(e as Map))
-                .toList();
-            _refreshBanksInBackground(prefs);
-            return List<Map<String, dynamic>>.from(_cachedBanks!);
+            final banks = _normalizeBanksList(decoded);
+            if (banks.isNotEmpty) {
+              _cachedBanks = banks;
+              debugPrint('📦 Loaded ${banks.length} banks from cache');
+              _refreshBanksInBackground(prefs);
+              return List<Map<String, dynamic>>.from(_cachedBanks!);
+            }
           } catch (_) {}
         }
       }
 
+      debugPrint('🔄 Fetching banks from gen_bank...');
       final response = await _httpGet('/banks');
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['success'] == true && data['banks'] is List) {
-          final banks = (data['banks'] as List)
-              .map((e) => Map<String, dynamic>.from(e as Map))
-              .toList();
+          final banks = _normalizeBanksList(data['banks'] as List);
           _cachedBanks = banks;
           await prefs.setString('cached_gen_banks', json.encode(banks));
+          debugPrint('✅ Loaded ${banks.length} banks from database');
           return List<Map<String, dynamic>>.from(banks);
         }
       }
     } catch (e) {
-      debugPrint('⚠️ Error fetching banks: $e');
+      debugPrint('❌ Error fetching banks: $e');
     }
     return _cachedBanks != null
         ? List<Map<String, dynamic>>.from(_cachedBanks!)
@@ -1734,18 +1754,21 @@ class ApiService {
   }
 
   static void _refreshBanksInBackground(SharedPreferences prefs) {
-    _httpGet('/banks').then((res) {
-      if (res.statusCode == 200) {
-        final data = json.decode(res.body);
-        if (data['success'] == true && data['banks'] is List) {
-          final banks = (data['banks'] as List)
-              .map((e) => Map<String, dynamic>.from(e as Map))
-              .toList();
-          _cachedBanks = banks;
-          prefs.setString('cached_gen_banks', json.encode(banks));
-        }
-      }
-    }).catchError((_) {});
+    _httpGet('/banks')
+        .then((res) {
+          if (res.statusCode == 200) {
+            final data = json.decode(res.body);
+            if (data['success'] == true && data['banks'] is List) {
+              final banks = _normalizeBanksList(data['banks'] as List);
+              _cachedBanks = banks;
+              prefs.setString('cached_gen_banks', json.encode(banks));
+              debugPrint('✅ Background sync: Loaded ${banks.length} banks from database');
+            }
+          }
+        })
+        .catchError((e) {
+          debugPrint('⚠️ Error during background bank sync: $e');
+        });
   }
 
   // Fetch branches from gen_bankbranch (filtered by bankCode)
@@ -1753,13 +1776,20 @@ class ApiService {
     required String bankCode,
     bool forceRefresh = false,
   }) async {
-    final cleanBankCode = bankCode.trim();
+    String cleanBankCode = bankCode.trim();
     if (cleanBankCode.isEmpty) return [];
+    if (cleanBankCode.toLowerCase() == 'b') {
+      cleanBankCode = '7010';
+    }
 
     if (!forceRefresh && _cachedBranchesByBank.containsKey(cleanBankCode)) {
-      return List<Map<String, dynamic>>.from(
-        _cachedBranchesByBank[cleanBankCode]!,
-      );
+      final cachedList = _cachedBranchesByBank[cleanBankCode]!;
+      if (cachedList.isNotEmpty) {
+        debugPrint(
+          '📦 Loaded ${cachedList.length} branches for BankCode: $cleanBankCode from cache',
+        );
+        return List<Map<String, dynamic>>.from(cachedList);
+      }
     }
 
     try {
@@ -1773,12 +1803,18 @@ class ApiService {
             final branches = decoded
                 .map((e) => Map<String, dynamic>.from(e as Map))
                 .toList();
-            _cachedBranchesByBank[cleanBankCode] = branches;
-            return List<Map<String, dynamic>>.from(branches);
+            if (branches.isNotEmpty) {
+              _cachedBranchesByBank[cleanBankCode] = branches;
+              debugPrint(
+                '📦 Loaded ${branches.length} branches for BankCode: $cleanBankCode from cache',
+              );
+              return List<Map<String, dynamic>>.from(branches);
+            }
           } catch (_) {}
         }
       }
 
+      debugPrint('🔄 Fetching branches for BankCode: $cleanBankCode from gen_bankbranch...');
       final response = await _httpGet(
         '/bank-branches?bankCode=${Uri.encodeComponent(cleanBankCode)}',
       );
@@ -1790,11 +1826,12 @@ class ApiService {
               .toList();
           _cachedBranchesByBank[cleanBankCode] = branches;
           await prefs.setString(cacheKey, json.encode(branches));
+          debugPrint('✅ Loaded ${branches.length} branches for BankCode: $cleanBankCode from database');
           return List<Map<String, dynamic>>.from(branches);
         }
       }
     } catch (e) {
-      debugPrint('⚠️ Error fetching branches for bank $cleanBankCode: $e');
+      debugPrint('❌ Error fetching branches for bank $cleanBankCode: $e');
     }
     return _cachedBranchesByBank[cleanBankCode] != null
         ? List<Map<String, dynamic>>.from(_cachedBranchesByBank[cleanBankCode]!)
@@ -1809,6 +1846,7 @@ class ApiService {
     required String tempDocNo,
     required String locaCode,
     required String costCenter,
+    // ignore: non_constant_identifier_names
     required String user_Name,
     String? customerName,
     String? address,
