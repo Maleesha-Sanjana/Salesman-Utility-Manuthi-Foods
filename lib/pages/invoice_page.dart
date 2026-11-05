@@ -11,6 +11,7 @@ import '../widgets/invoice/customer_selection_dialog.dart';
 import '../widgets/invoice/invoice_recall_dialog.dart';
 import '../widgets/invoice/invoice_table_widget.dart';
 import '../services/invoice_pdf_generator.dart';
+import '../services/receipt_printer_service.dart';
 import '../services/api_service.dart';
 import '../services/offline_sync_service.dart';
 import '../services/offline_auto_sync_service.dart';
@@ -8403,6 +8404,29 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
           ? rawName.substring(0, 150)
           : rawName;
 
+      String formatPriceLevel(dynamic val) {
+        final str = (val ?? '').toString().trim();
+        if (str.isEmpty) return '';
+        final match = RegExp(r'^level\s*(\d+)', caseSensitive: false).firstMatch(str);
+        if (match != null) {
+          return 'Level ${int.parse(match.group(1)!)}';
+        }
+        final numCode = int.tryParse(str);
+        if (numCode != null) {
+          return 'Level $numCode';
+        }
+        return str;
+      }
+
+      final rawLevel = (row['priceLevelName']?.toString().trim().isNotEmpty == true)
+          ? row['priceLevelName'].toString().trim()
+          : ((row['priceLevel']?.toString().trim().isNotEmpty == true)
+              ? row['priceLevel'].toString().trim()
+              : ((row['levelCode']?.toString().trim().isNotEmpty == true)
+                  ? row['levelCode'].toString().trim()
+                  : (_selectedCustomer?['priceLevel']?.toString().trim() ?? '')));
+      final rowPriceLevel = formatPriceLevel(rawLevel);
+
       return {
         'productCode': codeStr,
         'productDescription': name100,
@@ -8447,6 +8471,7 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
         'refCode': row['refCode']?.toString(),
         'documentDate': DateFormat('yyyy-MM-dd').format(documentDate),
         'createdUser': userName,
+        'priceLevel': rowPriceLevel,
       };
     }).toList();
   }
@@ -9075,6 +9100,48 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(
                           horizontal: 20,
+                          vertical: 12,
+                        ),
+                      ),
+                    ),
+                    FilledButton.icon(
+                      onPressed: () async {
+                        try {
+                          await ReceiptPrinterService.showPrintReceiptDialog(
+                            context: this.context,
+                            documentNo: invoiceNo,
+                            documentDate: documentDate,
+                            customer: savedCustomer,
+                            rows: savedRows,
+                            subtotal: savedSubtotal.toDouble(),
+                            billDiscountAmount: savedBillDiscountAmount
+                                .toDouble(),
+                            discountedAmount: savedDiscountedAmount.toDouble(),
+                            taxAmount: savedTaxAmount.toDouble(),
+                            netAmount: savedNetAmount.toDouble(),
+                            remarks: savedRemarks,
+                            salesmanName: savedSalesmanName,
+                            payments: savedPayments,
+                            paymentDetails: savedPaymentDetails,
+                          );
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(this.context).showSnackBar(
+                              SnackBar(
+                                content: Text('Failed to open receipt printer: $e'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        }
+                      },
+                      icon: const Icon(Icons.print_rounded),
+                      label: const Text('Generate Receipt'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: _accentColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
                           vertical: 12,
                         ),
                       ),

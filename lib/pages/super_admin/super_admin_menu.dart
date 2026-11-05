@@ -189,5 +189,16 @@ class SuperAdminMenu {
         ),
       ],
     ),
+    SuperAdminMenuTab(
+      title: 'Layout View',
+      items: [
+        SuperAdminMenuItem(
+          icon: Icons.receipt_long_rounded,
+          title: 'Receipt Layout',
+          route: '/super-admin/layout-view/receipt',
+          color: Color(0xFF0284C7),
+        ),
+      ],
+    ),
   ];
 }

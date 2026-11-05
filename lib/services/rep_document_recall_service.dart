@@ -6,6 +6,39 @@ import 'api_service.dart';
 import 'invoice_pdf_generator.dart';
 import 'quotation_pdf_generator.dart';
 import 'sales_order_pdf_generator.dart';
+import 'receipt_printer_service.dart';
+
+class _RecallDocumentData {
+  final String documentNo;
+  final DateTime documentDate;
+  final Map<String, dynamic> customer;
+  final List<Map<String, dynamic>> rows;
+  final double subtotal;
+  final double discAmount;
+  final double discountedAmount;
+  final double taxAmount;
+  final double netAmount;
+  final String? remarks;
+  final String salesmanName;
+  final String? reference;
+  final double Function(Map<String, dynamic> row) getPriceFromRow;
+
+  _RecallDocumentData({
+    required this.documentNo,
+    required this.documentDate,
+    required this.customer,
+    required this.rows,
+    required this.subtotal,
+    required this.discAmount,
+    required this.discountedAmount,
+    required this.taxAmount,
+    required this.netAmount,
+    this.remarks,
+    required this.salesmanName,
+    this.reference,
+    required this.getPriceFromRow,
+  });
+}
 
 class RepDocumentRecallService {
   static Future<Map<String, dynamic>> fetchRecall({
@@ -39,7 +72,7 @@ class RepDocumentRecallService {
     }
   }
 
-  static Future<void> previewPdfFromHistoryEntry({
+  static Future<_RecallDocumentData> _loadRecallDocumentData({
     required BuildContext context,
     required String documentType,
     required Map<String, dynamic> entry,
@@ -57,7 +90,8 @@ class RepDocumentRecallService {
     final salesmanName =
         auth.salesmanName.isNotEmpty ? auth.salesmanName : auth.salesmanCode;
     final customerCode = entry['customerCode']?.toString();
-    final fallbackCustomerName = entry['customerName']?.toString() ?? customerCode ?? 'Customer';
+    final fallbackCustomerName =
+        entry['customerName']?.toString() ?? customerCode ?? 'Customer';
 
     final recall = await fetchRecall(
       documentType: documentType,
@@ -81,9 +115,12 @@ class RepDocumentRecallService {
     final grossAmount = _toDouble(header['GrossAmount']);
     final discAmount = _toDouble(header['DiscAmount']);
     final taxAmount = _toDouble(header['TaxAmount']);
-    final netAmount = _toDouble(header['NetAmount'], fallback: _toDouble(entry['netAmount']));
-    final discountedAmount = grossAmount > 0 ? grossAmount - discAmount : netAmount - taxAmount;
-    final subtotal = grossAmount > 0 ? grossAmount : discountedAmount + discAmount;
+    final netAmount =
+        _toDouble(header['NetAmount'], fallback: _toDouble(entry['netAmount']));
+    final discountedAmount =
+        grossAmount > 0 ? grossAmount - discAmount : netAmount - taxAmount;
+    final subtotal =
+        grossAmount > 0 ? grossAmount : discountedAmount + discAmount;
     final documentDate = _parseDocumentDate(
       header['DocumentDate']?.toString() ?? entry['documentDate']?.toString(),
     );
@@ -117,76 +154,103 @@ class RepDocumentRecallService {
       return _toDouble(row['price']);
     }
 
+    return _RecallDocumentData(
+      documentNo: documentNo,
+      documentDate: documentDate,
+      customer: customer,
+      rows: rows,
+      subtotal: subtotal,
+      discAmount: discAmount,
+      discountedAmount: discountedAmount,
+      taxAmount: taxAmount,
+      netAmount: netAmount,
+      remarks: remarks,
+      salesmanName: salesmanName,
+      reference: header['Reference']?.toString(),
+      getPriceFromRow: getPriceFromRow,
+    );
+  }
+
+  static Future<void> previewPdfFromHistoryEntry({
+    required BuildContext context,
+    required String documentType,
+    required Map<String, dynamic> entry,
+  }) async {
+    final data = await _loadRecallDocumentData(
+      context: context,
+      documentType: documentType,
+      entry: entry,
+    );
     if (!context.mounted) return;
 
     switch (documentType) {
       case 'invoice':
         await InvoicePdfGenerator.generatePDF(
-          documentNo: documentNo,
-          documentDate: documentDate,
-          customer: customer,
-          rows: rows,
-          subtotal: subtotal,
-          billDiscountAmount: discAmount,
-          discountedAmount: discountedAmount,
-          taxAmount: taxAmount,
-          netAmount: netAmount,
-          remarks: remarks,
-          salesmanName: salesmanName,
-          getPriceFromRow: getPriceFromRow,
+          documentNo: data.documentNo,
+          documentDate: data.documentDate,
+          customer: data.customer,
+          rows: data.rows,
+          subtotal: data.subtotal,
+          billDiscountAmount: data.discAmount,
+          discountedAmount: data.discountedAmount,
+          taxAmount: data.taxAmount,
+          netAmount: data.netAmount,
+          remarks: data.remarks,
+          salesmanName: data.salesmanName,
+          getPriceFromRow: data.getPriceFromRow,
           context: context,
         );
         return;
       case 'sales-order':
         await SalesOrderPdfGenerator.generatePDF(
-          documentNo: documentNo,
-          documentDate: documentDate,
-          customer: customer,
-          rows: rows,
-          subtotal: subtotal,
-          billDiscountAmount: discAmount,
-          discountedAmount: discountedAmount,
-          taxAmount: taxAmount,
-          netAmount: netAmount,
-          remarks: remarks,
-          salesmanName: salesmanName,
-          poNumber: header['Reference']?.toString(),
-          getPriceFromRow: getPriceFromRow,
+          documentNo: data.documentNo,
+          documentDate: data.documentDate,
+          customer: data.customer,
+          rows: data.rows,
+          subtotal: data.subtotal,
+          billDiscountAmount: data.discAmount,
+          discountedAmount: data.discountedAmount,
+          taxAmount: data.taxAmount,
+          netAmount: data.netAmount,
+          remarks: data.remarks,
+          salesmanName: data.salesmanName,
+          poNumber: data.reference,
+          getPriceFromRow: data.getPriceFromRow,
           context: context,
         );
         return;
       case 'quotation':
         await QuotationPdfGenerator.generatePDF(
-          documentNo: documentNo,
-          documentDate: documentDate,
-          customer: customer,
-          rows: rows,
-          subtotal: subtotal,
-          billDiscountAmount: discAmount,
-          discountedAmount: discountedAmount,
-          taxAmount: taxAmount,
-          netAmount: netAmount,
-          remarks: remarks,
-          salesmanName: salesmanName,
-          reference: header['Reference']?.toString(),
-          getPriceFromRow: getPriceFromRow,
+          documentNo: data.documentNo,
+          documentDate: data.documentDate,
+          customer: data.customer,
+          rows: data.rows,
+          subtotal: data.subtotal,
+          billDiscountAmount: data.discAmount,
+          discountedAmount: data.discountedAmount,
+          taxAmount: data.taxAmount,
+          netAmount: data.netAmount,
+          remarks: data.remarks,
+          salesmanName: data.salesmanName,
+          reference: data.reference,
+          getPriceFromRow: data.getPriceFromRow,
           context: context,
         );
         return;
       case 'crn':
         await InvoicePdfGenerator.generatePDF(
-          documentNo: documentNo,
-          documentDate: documentDate,
-          customer: customer,
-          rows: rows,
-          subtotal: subtotal,
-          billDiscountAmount: discAmount,
-          discountedAmount: discountedAmount,
-          taxAmount: taxAmount,
-          netAmount: netAmount,
-          remarks: remarks,
-          salesmanName: salesmanName,
-          getPriceFromRow: getPriceFromRow,
+          documentNo: data.documentNo,
+          documentDate: data.documentDate,
+          customer: data.customer,
+          rows: data.rows,
+          subtotal: data.subtotal,
+          billDiscountAmount: data.discAmount,
+          discountedAmount: data.discountedAmount,
+          taxAmount: data.taxAmount,
+          netAmount: data.netAmount,
+          remarks: data.remarks,
+          salesmanName: data.salesmanName,
+          getPriceFromRow: data.getPriceFromRow,
           context: context,
           documentTitle: 'CUSTOMER RETURN',
           documentNoLabel: 'CRN No',
@@ -194,6 +258,60 @@ class RepDocumentRecallService {
         );
         return;
     }
+  }
+
+  static Future<void> printReceiptFromHistoryEntry({
+    required BuildContext context,
+    required String documentType,
+    required Map<String, dynamic> entry,
+  }) async {
+    final data = await _loadRecallDocumentData(
+      context: context,
+      documentType: documentType,
+      entry: entry,
+    );
+    if (!context.mounted) return;
+
+    String documentTitle;
+    String documentNoLabel;
+    switch (documentType) {
+      case 'invoice':
+        documentTitle = '*** SALES INVOICE RECEIPT ***';
+        documentNoLabel = 'Inv No';
+        break;
+      case 'sales-order':
+        documentTitle = '*** SALES ORDER RECEIPT ***';
+        documentNoLabel = 'Order No';
+        break;
+      case 'quotation':
+        documentTitle = '*** QUOTATION RECEIPT ***';
+        documentNoLabel = 'Quot No';
+        break;
+      case 'crn':
+        documentTitle = '*** CREDIT RETURN NOTE (CRN) ***';
+        documentNoLabel = 'CRN No';
+        break;
+      default:
+        documentTitle = '*** RECEIPT ***';
+        documentNoLabel = 'Doc No';
+    }
+
+    await ReceiptPrinterService.showPrintReceiptDialog(
+      context: context,
+      documentNo: data.documentNo,
+      documentDate: data.documentDate,
+      customer: data.customer,
+      rows: data.rows,
+      subtotal: data.subtotal,
+      billDiscountAmount: data.discAmount,
+      discountedAmount: data.discountedAmount,
+      taxAmount: data.taxAmount,
+      netAmount: data.netAmount,
+      remarks: data.remarks,
+      salesmanName: data.salesmanName,
+      documentTitle: documentTitle,
+      documentNoLabel: documentNoLabel,
+    );
   }
 
   static String _resolveLocaCode(String? value) {

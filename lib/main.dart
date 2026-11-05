@@ -25,6 +25,7 @@ import 'pages/super_admin/superAdminquotationreport.dart';
 import 'pages/super_admin/superAdmincrnreport.dart';
 import 'pages/super_admin/superAdminlocationtracking.dart';
 import 'pages/super_admin/superAdmindevicetracking.dart';
+import 'pages/super_admin/super_admin_receipt_layout_page.dart';
 import 'pages/admin_home_page.dart';
 import 'pages/normal_user_home_page.dart';
 import 'pages/customer_creation_page.dart';
@@ -379,6 +380,10 @@ class MyApp extends StatelessWidget {
               const SuperAdminLeaderboardPage(),
           '/super-admin/device-tracking': (_) =>
               const SuperAdminDeviceTrackingPage(),
+          '/super-admin/layout-view/receipt': (_) =>
+              const SuperAdminReceiptLayoutPage(),
+          '/super-admin/layout-view': (_) =>
+              const SuperAdminReceiptLayoutPage(),
         },
       ),
     );
