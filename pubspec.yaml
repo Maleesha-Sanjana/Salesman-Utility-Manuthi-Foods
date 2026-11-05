@@ -53,6 +53,8 @@ dependencies:
   path_provider: ^2.1.6
   sticky_headers: ^0.3.0+2
   connectivity_plus: ^7.3.1
+  print_bluetooth_thermal: ^1.2.5
+  esc_pos_utils_plus: ^2.0.4
 
 dev_dependencies:
   flutter_test:

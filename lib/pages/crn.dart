@@ -11,6 +11,7 @@ import '../widgets/invoice/customer_selection_dialog.dart';
 import '../widgets/invoice/invoice_recall_dialog.dart';
 import '../widgets/invoice/invoice_table_widget.dart';
 import '../services/invoice_pdf_generator.dart';
+import '../services/receipt_printer_service.dart';
 import '../services/api_service.dart';
 import '../services/offline_sync_service.dart';
 import '../services/offline_auto_sync_service.dart';
@@ -7024,6 +7025,21 @@ class _CrnPageState extends State<CrnPage> with WidgetsBindingObserver {
         'refCode': row['refCode']?.toString(),
         'documentDate': documentDate.toIso8601String(),
         'createdUser': userName,
+        'priceLevel': (() {
+          final str = (row['priceLevelName']?.toString().trim().isNotEmpty == true)
+              ? row['priceLevelName'].toString().trim()
+              : ((row['priceLevel']?.toString().trim().isNotEmpty == true)
+                  ? row['priceLevel'].toString().trim()
+                  : ((row['levelCode']?.toString().trim().isNotEmpty == true)
+                      ? row['levelCode'].toString().trim()
+                      : (_selectedCustomer?['priceLevel']?.toString().trim() ?? '')));
+          if (str.isEmpty) return '';
+          final match = RegExp(r'^level\s*(\d+)', caseSensitive: false).firstMatch(str);
+          if (match != null) return 'Level ${int.parse(match.group(1)!)}';
+          final numCode = int.tryParse(str);
+          if (numCode != null) return 'Level $numCode';
+          return str;
+        })(),
       };
     }).toList();
   }
@@ -7555,9 +7571,14 @@ class _CrnPageState extends State<CrnPage> with WidgetsBindingObserver {
                   ),
                 ],
               ),
+              actionsAlignment: MainAxisAlignment.center,
+              actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               actions: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 12,
+                  runSpacing: 10,
                   children: [
                     FilledButton.icon(
                       onPressed: () => Navigator.of(dialogContext).pop(),
@@ -7567,12 +7588,53 @@ class _CrnPageState extends State<CrnPage> with WidgetsBindingObserver {
                         backgroundColor: Colors.green,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
+                          horizontal: 20,
                           vertical: 12,
                         ),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    FilledButton.icon(
+                      onPressed: () async {
+                        try {
+                          await ReceiptPrinterService.showPrintReceiptDialog(
+                            context: this.context,
+                            documentNo: crnNo,
+                            documentDate: documentDate,
+                            customer: savedCustomer,
+                            rows: savedRows,
+                            subtotal: savedSubtotal.toDouble(),
+                            billDiscountAmount: savedBillDiscountAmount
+                                .toDouble(),
+                            discountedAmount: savedDiscountedAmount.toDouble(),
+                            taxAmount: savedTaxAmount.toDouble(),
+                            netAmount: savedNetAmount.toDouble(),
+                            remarks: savedRemarks,
+                            salesmanName: savedSalesmanName,
+                            documentTitle: '*** CREDIT RETURN NOTE (CRN) ***',
+                            documentNoLabel: 'CRN No',
+                          );
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(this.context).showSnackBar(
+                              SnackBar(
+                                content: Text('Failed to open receipt printer: $e'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        }
+                      },
+                      icon: const Icon(Icons.print_rounded),
+                      label: const Text('Generate Receipt'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: _accentColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                      ),
+                    ),
                     OutlinedButton.icon(
                       onPressed: () async {
                         Navigator.of(dialogContext).pop();
@@ -7608,7 +7670,7 @@ class _CrnPageState extends State<CrnPage> with WidgetsBindingObserver {
                       style: OutlinedButton.styleFrom(
                         foregroundColor: _accentColor,
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
+                          horizontal: 16,
                           vertical: 12,
                         ),
                       ),

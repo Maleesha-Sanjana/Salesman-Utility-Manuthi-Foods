@@ -191,6 +191,30 @@ class _RepDocumentHistoryPageState extends State<RepDocumentHistoryPage> {
     }
   }
 
+  Future<void> _printReceipt(Map<String, dynamic> entry) async {
+    final documentNo = entry['documentNo']?.toString() ?? '';
+    if (documentNo.isEmpty) return;
+
+    setState(() => _busyDocumentNo = documentNo);
+    try {
+      await RepDocumentRecallService.printReceiptFromHistoryEntry(
+        context: context,
+        documentType: widget.documentType,
+        entry: entry,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _busyDocumentNo = null);
+    }
+  }
+
   void _showDocumentActions(Map<String, dynamic> entry) {
     final isPending =
         entry['isPendingSync'] == true || entry['isOffline'] == true;
@@ -224,7 +248,7 @@ class _RepDocumentHistoryPageState extends State<RepDocumentHistoryPage> {
                 const SizedBox(height: 16),
                 if (isPending)
                   Text(
-                    'This document is still pending sync. Sync it before recalling or sharing.',
+                    'This document is still pending sync. Sync it before printing or sharing.',
                     style: Theme.of(sheetContext).textTheme.bodyMedium
                         ?.copyWith(color: Colors.orange.shade800),
                   )
@@ -232,17 +256,30 @@ class _RepDocumentHistoryPageState extends State<RepDocumentHistoryPage> {
                   FilledButton.icon(
                     onPressed: () {
                       Navigator.of(sheetContext).pop();
+                      _printReceipt(entry);
+                    },
+                    icon: const Icon(Icons.print_rounded),
+                    label: const Text('Print Receipt (PT-210)'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.blue.shade700,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.of(sheetContext).pop();
                       _previewPdf(entry);
                     },
                     icon: const Icon(Icons.picture_as_pdf_rounded),
                     label: const Text('View & Share PDF'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: widget.accentColor,
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Recalls this document from the database and opens a PDF preview. Use the share button in the preview to send it.',
+                    'Print thermal receipt on GOOJPRT PT-210 Bluetooth printer, or generate a PDF.',
                     style: Theme.of(
                       sheetContext,
                     ).textTheme.bodySmall?.copyWith(color: Colors.black54),
@@ -511,6 +548,7 @@ class _RepDocumentHistoryPageState extends State<RepDocumentHistoryPage> {
                               isPending: isPending,
                               isBusy: isBusy,
                               onPreviewPdf: () => _previewPdf(entry),
+                              onPrintReceipt: () => _printReceipt(entry),
                             ),
                           );
                         },
@@ -530,12 +568,14 @@ class _HistoryTrailingActions extends StatelessWidget {
     required this.isPending,
     required this.isBusy,
     required this.onPreviewPdf,
+    required this.onPrintReceipt,
   });
 
   final Color accentColor;
   final bool isPending;
   final bool isBusy;
   final VoidCallback onPreviewPdf;
+  final VoidCallback onPrintReceipt;
 
   @override
   Widget build(BuildContext context) {
@@ -555,13 +595,26 @@ class _HistoryTrailingActions extends StatelessWidget {
       );
     }
 
-    return IconButton(
-      tooltip: 'View & Share PDF',
-      visualDensity: VisualDensity.compact,
-      padding: EdgeInsets.zero,
-      constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-      icon: Icon(Icons.picture_as_pdf_rounded, color: accentColor, size: 22),
-      onPressed: onPreviewPdf,
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          tooltip: 'Print Receipt (PT-210)',
+          visualDensity: VisualDensity.compact,
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+          icon: Icon(Icons.print_rounded, color: Colors.blue.shade700, size: 21),
+          onPressed: onPrintReceipt,
+        ),
+        IconButton(
+          tooltip: 'View & Share PDF',
+          visualDensity: VisualDensity.compact,
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+          icon: Icon(Icons.picture_as_pdf_rounded, color: accentColor, size: 21),
+          onPressed: onPreviewPdf,
+        ),
+      ],
     );
   }
 }

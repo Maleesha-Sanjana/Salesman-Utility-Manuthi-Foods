@@ -169,6 +169,20 @@ function normalizeCostCenter(value) {
   return raw;
 }
 
+function normalizePriceLevel(value) {
+  if (!value) return '';
+  const str = value.toString().trim();
+  if (!str) return '';
+  const match = str.match(/^level\s*(\d+)/i);
+  if (match) {
+    return `Level ${parseInt(match[1], 10)}`;
+  }
+  if (/^\d+$/.test(str)) {
+    return `Level ${parseInt(str, 10)}`;
+  }
+  return str;
+}
+
 function parseDateOnly(value) {
   if (!value) {
     const now = new Date();
@@ -4501,6 +4515,7 @@ app.post('/api/sales-order/post', async (req, res) => {
             .input('documentDate', sql.DateTime, parseDateOnly(documentDate))
             .input('createdDate', sql.DateTime, new Date())
             .input('createdUser', sql.VarChar(50), finalUserName)
+            .input('priceLevel', sql.VarChar(15), normalizePriceLevel(txn.priceLevel || txn.priceLevelName || txn.levelCode || priceLevel).substring(0, 15))
             .query(`
               INSERT INTO inv_temptransaction (
                 TempDocNo, LocaCode, CostCenter, Iid, ProductCode, ProductDescription, LongDescription,
@@ -4509,7 +4524,7 @@ app.post('/api/sales-order/post', async (req, res) => {
                 DiscAmount, Amount, StockLoca, Tax, SerialNo, WarrantyPeriod,
                 Phase, PeriodDays, IsBatch, IsExpiry, IsSemi, IsAuthority, Adjustment,
                 AvgCostPrice, AvgDiscount, AvgOther, AvgVat, AvgMasterCostPrice,
-                RefCode, DocumentDate, Created_Date, Created_User
+                RefCode, DocumentDate, Created_Date, Created_User, PriceLevel
               ) VALUES (
                 @tempDocNo, @locaCode, @costCenter, @iid, @productCode, @productDescription, @longDescription,
                 @margin, @unit, @packSize, @reOrderQty, @qty, @pQty, @sQty, @bQty, @freeQty,
@@ -4517,7 +4532,7 @@ app.post('/api/sales-order/post', async (req, res) => {
                 @discAmount, @amount, @stockLoca, @tax, @serialNo, @warrantyPeriod,
                 @phase, @periodDays, @isBatch, @isExpiry, @isSemi, @isAuthority, @adjustment,
                 @avgCostPrice, @avgDiscount, @avgOther, @avgVat, @avgMasterCostPrice,
-                @refCode, CASE WHEN @documentDate IS NOT NULL THEN CAST(@documentDate AS DATE) ELSE NULL END, @createdDate, @createdUser
+                @refCode, CASE WHEN @documentDate IS NOT NULL THEN CAST(@documentDate AS DATE) ELSE NULL END, @createdDate, @createdUser, @priceLevel
               )
             `);
         }
@@ -5740,6 +5755,7 @@ app.post('/api/invoice/temp-transactions', async (req, res) => {
           .input('documentDate', sql.DateTime, txn.documentDate ? parseDateOnly(txn.documentDate) : null)
           .input('createdDate', sql.DateTime, new Date())
           .input('createdUser', sql.VarChar(50), (txn.createdUser || '').toString().substring(0, 50))
+          .input('priceLevel', sql.VarChar(15), normalizePriceLevel(txn.priceLevel || txn.priceLevelName || txn.levelCode).substring(0, 15))
           .query(`
             INSERT INTO inv_temptransaction (
               TempDocNo, LocaCode, CostCenter, Iid, ProductCode, ProductDescription, LongDescription,
@@ -5748,7 +5764,7 @@ app.post('/api/invoice/temp-transactions', async (req, res) => {
               DiscAmount, Amount, StockLoca, Tax, SerialNo, WarrantyPeriod,
               Phase, PeriodDays, IsBatch, IsExpiry, IsSemi, IsAuthority, Adjustment,
               AvgCostPrice, AvgDiscount, AvgOther, AvgVat, AvgMasterCostPrice,
-              RefCode, DocumentDate, Created_Date, Created_User
+              RefCode, DocumentDate, Created_Date, Created_User, PriceLevel
             ) VALUES (
               @tempDocNo, @locaCode, @costCenter, @iid, @productCode, @productDescription, @longDescription,
               @margin, @unit, @packSize, @reOrderQty, @qty, @pQty, @sQty, @bQty, @freeQty,
@@ -5756,7 +5772,7 @@ app.post('/api/invoice/temp-transactions', async (req, res) => {
               @discAmount, @amount, @stockLoca, @tax, @serialNo, @warrantyPeriod,
               @phase, @periodDays, @isBatch, @isExpiry, @isSemi, @isAuthority, @adjustment,
               @avgCostPrice, @avgDiscount, @avgOther, @avgVat, @avgMasterCostPrice,
-              @refCode, CASE WHEN @documentDate IS NOT NULL THEN CAST(@documentDate AS DATE) ELSE NULL END, @createdDate, @createdUser
+              @refCode, CASE WHEN @documentDate IS NOT NULL THEN CAST(@documentDate AS DATE) ELSE NULL END, @createdDate, @createdUser, @priceLevel
             )
           `);
       }

@@ -15,19 +15,19 @@ class ApiService {
   // LOCAL DEV (simulator / Mac backend): uncomment the localhost pair below
   // and comment out the production pair.
   //
-  static const String primaryBaseUrl = 'http://localhost:3000/api';
-  static const String fallbackBaseUrl = 'http://localhost:3000/api';
+  //static const String primaryBaseUrl = 'http://localhost:3000/api';
+  //static const String fallbackBaseUrl = 'http://localhost:3000/api';
   //
   // PRODUCTION (static IP first, then LAN fallback):
   // ---------------------------------------------------------------------------
 
   /// Public / static IP — tried first.
-  //static const String primaryBaseUrl =
-  //  'http://38.247.130.159:3000/api'; //Manuthi Foods
+  static const String primaryBaseUrl =
+      'http://38.247.130.159:3000/api'; //Manuthi Foods
 
   /// LAN fallback — used when primary is unreachable.
-  //static const String fallbackBaseUrl =
-  //  'http://38.247.130.159:3000/api'; //Manuthi Foods
+  static const String fallbackBaseUrl =
+      'http://38.247.130.159:3000/api'; //Manuthi Foods
 
   static const String _offlineProductsKey = 'offline_products_no_images';
   static const String _cachedCustomersKey = 'cached_customers_list';
@@ -1699,7 +1699,8 @@ class ApiService {
       final code = (map['BankCode']?.toString() ?? '').trim();
       final name = (map['BankName']?.toString() ?? '').toLowerCase();
       // Bank of Ceylon official clearing code in gen_bankbranch is 7010 (legacy gen_bank row has 'b')
-      if (code.toLowerCase() == 'b' || (code.isEmpty && name.contains('ceylon'))) {
+      if (code.toLowerCase() == 'b' ||
+          (code.isEmpty && name.contains('ceylon'))) {
         map['BankCode'] = '7010';
       }
       return map;
@@ -1762,7 +1763,9 @@ class ApiService {
               final banks = _normalizeBanksList(data['banks'] as List);
               _cachedBanks = banks;
               prefs.setString('cached_gen_banks', json.encode(banks));
-              debugPrint('✅ Background sync: Loaded ${banks.length} banks from database');
+              debugPrint(
+                '✅ Background sync: Loaded ${banks.length} banks from database',
+              );
             }
           }
         })
@@ -1814,7 +1817,9 @@ class ApiService {
         }
       }
 
-      debugPrint('🔄 Fetching branches for BankCode: $cleanBankCode from gen_bankbranch...');
+      debugPrint(
+        '🔄 Fetching branches for BankCode: $cleanBankCode from gen_bankbranch...',
+      );
       final response = await _httpGet(
         '/bank-branches?bankCode=${Uri.encodeComponent(cleanBankCode)}',
       );
@@ -1826,7 +1831,9 @@ class ApiService {
               .toList();
           _cachedBranchesByBank[cleanBankCode] = branches;
           await prefs.setString(cacheKey, json.encode(branches));
-          debugPrint('✅ Loaded ${branches.length} branches for BankCode: $cleanBankCode from database');
+          debugPrint(
+            '✅ Loaded ${branches.length} branches for BankCode: $cleanBankCode from database',
+          );
           return List<Map<String, dynamic>>.from(branches);
         }
       }

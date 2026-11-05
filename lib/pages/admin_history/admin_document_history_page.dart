@@ -247,6 +247,30 @@ class _AdminDocumentHistoryPageState extends State<AdminDocumentHistoryPage> {
     }
   }
 
+  Future<void> _printReceipt(Map<String, dynamic> entry) async {
+    final documentNo = entry['documentNo']?.toString() ?? '';
+    if (documentNo.isEmpty) return;
+
+    setState(() => _busyDocumentNo = documentNo);
+    try {
+      await RepDocumentRecallService.printReceiptFromHistoryEntry(
+        context: context,
+        documentType: widget.documentType,
+        entry: entry,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _busyDocumentNo = null);
+    }
+  }
+
   void _showDocumentActions(Map<String, dynamic> entry) {
     final documentNo = entry['documentNo']?.toString() ?? '-';
     final customerName =
@@ -282,13 +306,34 @@ class _AdminDocumentHistoryPageState extends State<AdminDocumentHistoryPage> {
                 FilledButton.icon(
                   onPressed: () {
                     Navigator.of(sheetContext).pop();
+                    _printReceipt(entry);
+                  },
+                  icon: const Icon(Icons.print_rounded),
+                  label: const Text('Print Receipt (PT-210)'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.blue.shade700,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.of(sheetContext).pop();
                     _previewPdf(entry);
                   },
                   icon: const Icon(Icons.picture_as_pdf_rounded),
                   label: const Text('View & Share PDF'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: widget.accentColor,
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Print thermal receipt on GOOJPRT PT-210 Bluetooth printer, or generate a PDF.',
+                  style: Theme.of(
+                    sheetContext,
+                  ).textTheme.bodySmall?.copyWith(color: Colors.black54),
+                  textAlign: TextAlign.center,
                 ),
               ],
             ),
@@ -535,6 +580,7 @@ class _AdminDocumentHistoryPageState extends State<AdminDocumentHistoryPage> {
                           formatAmount: _formatAmount,
                           onTap: () => _showDocumentActions(entry),
                           onPreviewPdf: () => _previewPdf(entry),
+                          onPrintReceipt: () => _printReceipt(entry),
                           showSalesman: false,
                         ),
                       ).toList(),
@@ -562,6 +608,7 @@ class _AdminDocumentHistoryPageState extends State<AdminDocumentHistoryPage> {
           formatAmount: _formatAmount,
           onTap: () => _showDocumentActions(entry),
           onPreviewPdf: () => _previewPdf(entry),
+          onPrintReceipt: () => _printReceipt(entry),
           showSalesman: true,
         );
       },
@@ -672,6 +719,7 @@ class _DocumentRow extends StatelessWidget {
     required this.formatAmount,
     required this.onTap,
     required this.onPreviewPdf,
+    required this.onPrintReceipt,
     required this.showSalesman,
   });
 
@@ -683,6 +731,7 @@ class _DocumentRow extends StatelessWidget {
   final String Function(dynamic value) formatAmount;
   final VoidCallback onTap;
   final VoidCallback onPreviewPdf;
+  final VoidCallback onPrintReceipt;
   final bool showSalesman;
 
   @override
@@ -722,13 +771,26 @@ class _DocumentRow extends StatelessWidget {
               height: 22,
               child: CircularProgressIndicator(strokeWidth: 2),
             )
-          : IconButton(
-              tooltip: 'View & Share PDF',
-              visualDensity: VisualDensity.compact,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-              icon: Icon(Icons.picture_as_pdf_rounded, color: accentColor, size: 22),
-              onPressed: onPreviewPdf,
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  tooltip: 'Print Receipt (PT-210)',
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  icon: Icon(Icons.print_rounded, color: Colors.blue.shade700, size: 21),
+                  onPressed: onPrintReceipt,
+                ),
+                IconButton(
+                  tooltip: 'View & Share PDF',
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  icon: Icon(Icons.picture_as_pdf_rounded, color: accentColor, size: 21),
+                  onPressed: onPreviewPdf,
+                ),
+              ],
             ),
     );
   }

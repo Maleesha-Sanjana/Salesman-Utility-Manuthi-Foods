@@ -33,6 +33,7 @@ import 'superAdminUserRights.dart';
 import 'superAdminprofile.dart';
 import 'super_admin_logout_users.dart';
 import 'super_admin_menu.dart';
+import 'super_admin_receipt_layout_page.dart';
 
 class SuperAdminHomePage extends StatefulWidget {
   const SuperAdminHomePage({super.key});
@@ -298,6 +299,9 @@ class _SuperAdminHomePageState extends State<SuperAdminHomePage> {
         return LeaderboardPage(appBarLeading: menuButton);
       case '/super-admin/ref/stock-reports':
         return StockReportsPage(appBarLeading: menuButton);
+      case '/super-admin/layout-view/receipt':
+      case '/super-admin/layout-view':
+        return SuperAdminReceiptLayoutPage(appBarLeading: menuButton);
       case '/super-admin/device-tracking':
       default:
         return AdminDeviceTrackingPage(appBarLeading: menuButton);

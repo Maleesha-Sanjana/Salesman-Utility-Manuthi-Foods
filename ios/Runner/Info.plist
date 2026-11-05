@@ -93,6 +93,12 @@
 	<string>This app needs camera access so you can take a profile photo.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>This app needs photo library access so you can choose a profile photo.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>This app needs Bluetooth to connect and print receipts to the GOOJPRT PT-210 portable thermal printer.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>This app needs Bluetooth to connect and print receipts to the GOOJPRT PT-210 portable thermal printer.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>This app needs local network access to discover and print receipts to WiFi thermal printers on your network.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>location</string>
