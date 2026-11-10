@@ -110,7 +110,14 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
         });
         _resolveSalesmanStockLocation();
         if (_selectedCustomer != null && _saleLocationCode == null) {
-          _resolveSaleLocationForCustomer(_selectedCustomer!['location']);
+          _resolveSaleLocationForCustomer(_selectedCustomer!['location']).then((hasValid) {
+            if (!hasValid && mounted) {
+              setState(() {
+                _selectedCustomer = null;
+                _saleLocationCode = null;
+              });
+            }
+          });
         }
       }
     } catch (e) {
@@ -161,10 +168,48 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
     return fallbackCode;
   }
 
-  Future<void> _resolveSaleLocationForCustomer(String? customerLocation) async {
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final defaultLoca = authProvider.currentSalesman?.location ?? '01';
+  void _showNoLocationErrorDialog(String customerName, [String? customerCode]) {
+    if (!mounted) return;
+    showDialog<void>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: Row(
+          children: [
+            Icon(
+              Icons.error_outline_rounded,
+              color: Colors.red.shade700,
+              size: 28,
+            ),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Text(
+                'Invoicing Not Allowed',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'Customer "$customerName"${customerCode != null && customerCode.isNotEmpty ? ' ($customerCode)' : ''} has no valid location assigned in the system.\n\nSales reps cannot invoice customers without an assigned location.\n\nPlease contact Head Office to assign a location to this customer.',
+          style: const TextStyle(fontSize: 14, height: 1.4),
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.red.shade700,
+            ),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
 
+  Future<bool> _resolveSaleLocationForCustomer(String? customerLocation) async {
     String rawLoc = (customerLocation ?? '').trim();
     if (rawLoc.isEmpty && _selectedCustomer != null) {
       final code = _selectedCustomer!['code'] ?? '';
@@ -182,10 +227,10 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
     if (rawLoc.isEmpty) {
       if (mounted) {
         setState(() {
-          _saleLocationCode = defaultLoca;
+          _saleLocationCode = null;
         });
       }
-      return;
+      return false;
     }
 
     if (_locations.isEmpty) {
@@ -226,7 +271,16 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
       }
     }
 
-    final finalCode = matchedCode ?? defaultLoca;
+    if (matchedCode == null) {
+      if (mounted) {
+        setState(() {
+          _saleLocationCode = null;
+        });
+      }
+      return false;
+    }
+
+    final finalCode = matchedCode;
     if (mounted) {
       setState(() {
         _saleLocationCode = finalCode;
@@ -238,7 +292,7 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
       });
     }
     debugPrint(
-      '📍 Sale location resolved to: $_saleLocationCode (raw="$rawLoc", default="$defaultLoca")',
+      '📍 Sale location resolved to: $_saleLocationCode (raw="$rawLoc")',
     );
 
     // Re-sync UI rows to temp transactions with new location code if rows exist
@@ -246,6 +300,7 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
       _syncUiRowsToTempTransactions();
     }
     _persistActiveDraft(immediate: true);
+    return true;
   }
 
   void _warmUpLocalCaches() {
@@ -536,8 +591,14 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
       });
 
       if (!mounted) return;
-      if (_saleLocationCode == null && _selectedCustomer != null) {
-        await _resolveSaleLocationForCustomer(_selectedCustomer!['location']);
+      if (_selectedCustomer != null) {
+        final hasValid = await _resolveSaleLocationForCustomer(_selectedCustomer!['location']);
+        if (!hasValid && mounted) {
+          setState(() {
+            _selectedCustomer = null;
+            _saleLocationCode = null;
+          });
+        }
       }
       final cart = Provider.of<CartProvider>(context, listen: false);
       cart.setCustomerInfo(name: _selectedCustomer?['name']);
@@ -559,6 +620,15 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
           content: const Text('Please select a customer first'),
           backgroundColor: _accentColor,
         ),
+      );
+      return;
+    }
+
+    final custLoc = (_selectedCustomer?['location'] ?? '').trim();
+    if (custLoc.isEmpty || _saleLocationCode == null) {
+      _showNoLocationErrorDialog(
+        _selectedCustomer?['name'] ?? 'This customer',
+        _selectedCustomer?['code'] ?? '',
       );
       return;
     }
@@ -1069,6 +1139,7 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
               return CustomerSelectionDialog(
                 customers: buildDialogList(_customers),
                 isLoading: _isLoadingCustomers,
+                requireLocation: true,
               );
             },
           ),
@@ -4118,6 +4189,30 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
           ),
         );
       }
+      return;
+    }
+
+    if (_selectedCustomer == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Please select a customer before posting',
+            ),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+      return;
+    }
+
+    final custLoc = (_selectedCustomer!['location'] ?? '').trim();
+    if (custLoc.isEmpty || _saleLocationCode == null) {
+      _showNoLocationErrorDialog(
+        _selectedCustomer!['name'] ?? 'This customer',
+        _selectedCustomer!['code'] ?? '',
+      );
       return;
     }
 
@@ -7968,19 +8063,30 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                           });
 
                           if (selection.isNotEmpty) {
-                            await _resolveSaleLocationForCustomer(
+                            final hasValidLocation =
+                                await _resolveSaleLocationForCustomer(
                               selection['location'],
                             );
+                            if (!hasValidLocation) {
+                              if (mounted) {
+                                setState(() {
+                                  _selectedCustomer = null;
+                                  _saleLocationCode = null;
+                                  _clearRecalledQuotation(clearRows: true);
+                                  _clearRecalledSalesOrder();
+                                  cart.setCustomerInfo(name: null, location: null);
+                                });
+                                _showNoLocationErrorDialog(
+                                  selection['name'] ?? 'This customer',
+                                  selection['code'] ?? '',
+                                );
+                              }
+                              return;
+                            }
                           } else {
-                            final authProvider = Provider.of<AuthProvider>(
-                              context,
-                              listen: false,
-                            );
                             if (mounted) {
                               setState(() {
-                                _saleLocationCode =
-                                    authProvider.currentSalesman?.location ??
-                                    '01';
+                                _saleLocationCode = null;
                               });
                             }
                           }
@@ -8548,6 +8654,15 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
           content: Text('Please select a customer'),
           backgroundColor: Colors.red,
         ),
+      );
+      return;
+    }
+
+    final custLoc = (_selectedCustomer!['location'] ?? '').trim();
+    if (custLoc.isEmpty || _saleLocationCode == null) {
+      _showNoLocationErrorDialog(
+        _selectedCustomer!['name'] ?? 'This customer',
+        _selectedCustomer!['code'] ?? '',
       );
       return;
     }
