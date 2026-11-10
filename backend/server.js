@@ -2184,7 +2184,7 @@ app.post('/api/customers', async (req, res) => {
     } = req.body;
 
     const cleanName = (customerName || '').toString().trim();
-    let cleanLocation = (location || '').toString().trim();
+    let cleanLocation = (location || '').toString().trim() || 'Manuthi Foods';
     const cleanCustomerType = (customerType || 'Trade').toString().trim().substring(0, 10);
     const cleanCustomerId = (customerId || '').toString().trim().substring(0, 15);
     const cleanTaxGroupCode = (taxGroupCode || '1').toString().trim().substring(0, 15);
@@ -2304,7 +2304,7 @@ app.post('/api/customers', async (req, res) => {
       .input('suspend', sql.Int, 0)
       .input('webSite', sql.NVarChar(50), '')
       .input('disForEarlySettlement', sql.Decimal(18, 0), 0)
-      .input('location', sql.NVarChar(50), '')
+      .input('location', sql.NVarChar(50), cleanLocation.substring(0, 50))
       .input('showLocation', sql.Int, 0)
       .input('taxGroupCode', sql.NVarChar(15), cleanTaxGroupCode)
       .input('costCenter', sql.NVarChar(15), '')
@@ -2524,7 +2524,7 @@ app.put('/api/customers/:customerCode', async (req, res) => {
 
     const cleanCode = (customerCode || '').toString().trim();
     const cleanName = (customerName || '').toString().trim();
-    let cleanLocation = (location || '').toString().trim();
+    let cleanLocation = (location || '').toString().trim() || 'Manuthi Foods';
     const cleanCustomerType = (customerType || 'Trade').toString().trim().substring(0, 10);
     const cleanCustomerId = (customerId || '').toString().trim().substring(0, 15);
     const cleanTaxGroupCode = (taxGroupCode || '1').toString().trim().substring(0, 15);
@@ -2613,7 +2613,6 @@ app.put('/api/customers/:customerCode', async (req, res) => {
       .input('creditPeriodRestrict', sql.Bit, creditPeriodRestrict ? 1 : 0)
       .input('outstadingRestrict', sql.Bit, outstandingRestrict ? 1 : 0)
       .input('pdChequeRestrict', sql.Bit, pdChequeRestrict ? 1 : 0)
-      .input('location', sql.NVarChar(50), cleanLocation.substring(0, 50))
       .input('salesRepCode', sql.NVarChar(15), cleanSalesRepCode)
       .input('createdSalesman', sql.NVarChar(15), cleanCreatedSalesman)
       .input('editedDate', sql.DateTime, new Date())
@@ -2629,7 +2628,6 @@ app.put('/api/customers/:customerCode', async (req, res) => {
             Address3 = @address3,
             Tno = @tno,
             Mobile = @mobile,
-            Tno = @tno,
             CustomerId = @customerId,
             CustomerType = @customerType,
             TaxGroupCode = @taxGroupCode,
@@ -2637,7 +2635,6 @@ app.put('/api/customers/:customerCode', async (req, res) => {
             CreditPeriodRestrict = @creditPeriodRestrict,
             OutstadingRestrict = @outstadingRestrict,
             PDChequeRestrict = @pdChequeRestrict,
-            Location = @location,
             SalesRepCode = @salesRepCode,
             CreatedSalesman = @createdSalesman,
             Edited_Date = @editedDate,
@@ -2659,12 +2656,15 @@ app.put('/api/customers/:customerCode', async (req, res) => {
     const updatedRow = await pool.request()
       .input('customerCode', sql.NVarChar(15), cleanCode.substring(0, 15))
       .query(`
-        SELECT ISNULL(CreatedSalesman, '') as createdSalesman
+        SELECT 
+          ISNULL(CreatedSalesman, '') as createdSalesman,
+          ISNULL(Location, '') as location
         FROM gen_customer
         WHERE CustomerCode = @customerCode
       `);
     const savedCreatedSalesman =
       updatedRow.recordset[0]?.createdSalesman || cleanCreatedSalesman;
+    const existingLocation = updatedRow.recordset[0]?.location || '';
 
     const customer = {
       code: cleanCode.substring(0, 15),
@@ -2685,7 +2685,7 @@ app.put('/api/customers/:customerCode', async (req, res) => {
       creditPeriodRestrict: creditPeriodRestrict,
       outstandingRestrict: outstandingRestrict,
       pdChequeRestrict: pdChequeRestrict,
-      location: cleanLocation.substring(0, 50),
+      location: existingLocation,
       salesRepCode: cleanSalesRepCode,
       createdSalesman: savedCreatedSalesman,
       latitude: parsedLatitude,
@@ -6126,49 +6126,63 @@ app.post('/api/invoice/post', async (req, res) => {
     await transaction.begin(sql.ISOLATION_LEVEL.SERIALIZABLE);
 
     try {
-      // Search customer location in gen_customer and compare to gen_location LocationDescription column
+      // Search customer location in gen_customer and validate against gen_location
       if (customerCode) {
-        try {
-          const custLocMatch = await new sql.Request(transaction)
-            .input('custCode', sql.VarChar(50), customerCode)
+        const custLocMatch = await new sql.Request(transaction)
+          .input('custCode', sql.VarChar(50), customerCode)
+          .query(`
+            SELECT TOP 1 
+              c.CustomerCode,
+              c.CustomerName,
+              c.Location AS CustomerLocation,
+              l.LocationCode
+            FROM gen_customer c
+            LEFT JOIN gen_location l 
+              ON (LTRIM(RTRIM(LOWER(c.Location))) = LTRIM(RTRIM(LOWER(l.LocationDescription)))
+                  OR LTRIM(RTRIM(LOWER(c.Location))) = LTRIM(RTRIM(LOWER(l.LocationCode))))
+            WHERE c.CustomerCode = @custCode
+          `);
+
+        if (custLocMatch.recordset.length === 0) {
+          throw new Error(`Customer "${customerCode}" not found in gen_customer.`);
+        }
+
+        const custRow = custLocMatch.recordset[0];
+        const rawCustLoc = (custRow.CustomerLocation || '').toString().trim();
+        const custName = (custRow.CustomerName || customerCode).toString().trim();
+
+        if (!rawCustLoc) {
+          throw new Error(
+            `Invoicing not allowed: Customer "${custName}" (${customerCode}) has no location assigned in the system. Please contact Head Office to assign a location before invoicing.`
+          );
+        }
+
+        if (!custRow.LocationCode) {
+          throw new Error(
+            `Invoicing not allowed: Customer "${custName}" (${customerCode}) has location "${rawCustLoc}" which does not match any valid location in gen_location. Please contact Head Office to update customer location.`
+          );
+        }
+
+        const matchedLoca = normalizeLocaCode(custRow.LocationCode);
+        const custLocName = custRow.CustomerLocation;
+        console.log(`📍 Customer ${customerCode} location "${custLocName}" matched gen_location LocationCode: ${matchedLoca} (passed: ${finalLocaCode})`);
+
+        if (matchedLoca !== finalLocaCode) {
+          // Update temp transactions and temp payments to the matched location code so SP finds them
+          await new sql.Request(transaction)
+            .input('tempDocNo', sql.VarChar(20), tempDocNo)
+            .input('oldLoca', sql.VarChar(5), finalLocaCode)
+            .input('newLoca', sql.VarChar(5), matchedLoca)
             .query(`
-              SELECT TOP 1 
-                c.Location AS CustomerLocation,
-                l.LocationCode
-              FROM gen_customer c
-              INNER JOIN gen_location l 
-                ON (LTRIM(RTRIM(LOWER(c.Location))) = LTRIM(RTRIM(LOWER(l.LocationDescription)))
-                    OR LTRIM(RTRIM(LOWER(c.Location))) = LTRIM(RTRIM(LOWER(l.LocationCode))))
-              WHERE c.CustomerCode = @custCode
-                AND c.Location IS NOT NULL 
-                AND LTRIM(RTRIM(c.Location)) <> ''
+              UPDATE inv_temptransaction 
+              SET LocaCode = @newLoca 
+              WHERE TempDocNo = @tempDocNo AND LocaCode = @oldLoca;
+
+              UPDATE inv_temppayment 
+              SET LocaCode = @newLoca 
+              WHERE TempDocNo = @tempDocNo AND LocaCode = @oldLoca;
             `);
-
-          if (custLocMatch.recordset.length > 0 && custLocMatch.recordset[0].LocationCode) {
-            const matchedLoca = normalizeLocaCode(custLocMatch.recordset[0].LocationCode);
-            const custLocName = custLocMatch.recordset[0].CustomerLocation;
-            console.log(`📍 Customer ${customerCode} location "${custLocName}" matched gen_location LocationCode: ${matchedLoca} (passed: ${finalLocaCode})`);
-
-            if (matchedLoca !== finalLocaCode) {
-              // Update temp transactions and temp payments to the matched location code so SP finds them
-              await new sql.Request(transaction)
-                .input('tempDocNo', sql.VarChar(20), tempDocNo)
-                .input('oldLoca', sql.VarChar(5), finalLocaCode)
-                .input('newLoca', sql.VarChar(5), matchedLoca)
-                .query(`
-                  UPDATE inv_temptransaction 
-                  SET LocaCode = @newLoca 
-                  WHERE TempDocNo = @tempDocNo AND LocaCode = @oldLoca;
-
-                  UPDATE inv_temppayment 
-                  SET LocaCode = @newLoca 
-                  WHERE TempDocNo = @tempDocNo AND LocaCode = @oldLoca;
-                `);
-              finalLocaCode = matchedLoca;
-            }
-          }
-        } catch (locErr) {
-          console.warn('⚠️ Error checking customer location against gen_location:', locErr.message);
+          finalLocaCode = matchedLoca;
         }
       }
 

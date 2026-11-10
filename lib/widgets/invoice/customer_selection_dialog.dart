@@ -6,10 +6,12 @@ class CustomerSelectionDialog extends StatefulWidget {
     super.key,
     required this.customers,
     this.isLoading = false,
+    this.requireLocation = false,
   });
 
   final List<Map<String, String>> customers;
   final bool isLoading;
+  final bool requireLocation;
 
   @override
   State<CustomerSelectionDialog> createState() =>
@@ -130,6 +132,9 @@ class _CustomerSelectionDialogState extends State<CustomerSelectionDialog> {
                             final phone = customer['phone'] ?? '';
                             final contactPerson =
                                 customer['contactPerson'] ?? '';
+                            final location =
+                                (customer['location'] ?? '').trim();
+                            final hasLocation = location.isNotEmpty;
                             final subtitleParts = <String>[
                               if (phone.isNotEmpty) phone,
                               if (contactPerson.isNotEmpty) contactPerson,
@@ -149,12 +154,85 @@ class _CustomerSelectionDialogState extends State<CustomerSelectionDialog> {
                                 child: const Icon(Icons.person_rounded),
                               ),
                               title: Text('$code • $name'),
-                              subtitle: Text(
-                                subtitleParts.isEmpty
-                                    ? ''
-                                    : subtitleParts.join(' • '),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (subtitleParts.isNotEmpty)
+                                    Text(subtitleParts.join(' • ')),
+                                  if (widget.requireLocation && !hasLocation)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 4.0),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.warning_amber_rounded,
+                                            size: 14,
+                                            color: Colors.red.shade700,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            'No Location (Cannot Invoice)',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.red.shade700,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                ],
                               ),
                               onTap: () {
+                                if (widget.requireLocation && !hasLocation) {
+                                  showDialog<void>(
+                                    context: context,
+                                    builder: (dialogCtx) => AlertDialog(
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                      title: Row(
+                                        children: [
+                                          Icon(
+                                            Icons.error_outline_rounded,
+                                            color: Colors.red.shade700,
+                                            size: 28,
+                                          ),
+                                          const SizedBox(width: 10),
+                                          const Expanded(
+                                            child: Text(
+                                              'Invoicing Not Allowed',
+                                              style: TextStyle(
+                                                fontSize: 18,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      content: Text(
+                                        'Customer "$name" ($code) has no location assigned in the system.\n\nSales reps cannot invoice customers without an assigned location.\n\nPlease contact Head Office to assign a location to this customer.',
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          height: 1.4,
+                                        ),
+                                      ),
+                                      actions: [
+                                        FilledButton(
+                                          onPressed: () =>
+                                              Navigator.of(dialogCtx).pop(),
+                                          style: FilledButton.styleFrom(
+                                            backgroundColor:
+                                                Colors.red.shade700,
+                                          ),
+                                          child: const Text('OK'),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                  return;
+                                }
                                 FocusScope.of(context).unfocus();
                                 Navigator.of(context).pop(customer);
                               },

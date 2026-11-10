@@ -149,7 +149,7 @@ class _CustomerCreationPageState extends State<CustomerCreationPage> {
         : '';
     final payload = {
       'customerName': _name.text.trim(),
-      'location': currentLocation,
+      'location': isUpdatingCustomer ? '' : 'Manuthi Foods',
       'latitude': _latitude,
       'longitude': _longitude,
       'mobile': _mobile.text.trim(),
@@ -190,7 +190,7 @@ class _CustomerCreationPageState extends State<CustomerCreationPage> {
         final response = await ApiService.updateCustomer(
           customerCode: customerCode,
           customerName: payload['customerName'].toString(),
-          location: payload['location'].toString(),
+          location: '', // Do not pass anything to Location column when updating recalled customer
           latitude: payload['latitude'] as double?,
           longitude: payload['longitude'] as double?,
           mobile: payload['mobile'].toString(),
@@ -246,7 +246,7 @@ class _CustomerCreationPageState extends State<CustomerCreationPage> {
 
       final response = await ApiService.createCustomer(
         customerName: payload['customerName'].toString(),
-        location: payload['location'].toString(),
+        location: 'Manuthi Foods', // Default to "Manuthi Foods" for new customer registration only
         latitude: payload['latitude'] as double?,
         longitude: payload['longitude'] as double?,
         mobile: payload['mobile'].toString(),
