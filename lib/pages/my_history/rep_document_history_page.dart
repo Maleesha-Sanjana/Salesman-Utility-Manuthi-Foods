@@ -40,6 +40,7 @@ class _RepDocumentHistoryPageState extends State<RepDocumentHistoryPage> {
   DateTime? _fromDate;
   DateTime? _toDate;
   String? _busyDocumentNo;
+  String _selectedPaymentMethod = 'All';
 
   @override
   void initState() {
@@ -70,6 +71,8 @@ class _RepDocumentHistoryPageState extends State<RepDocumentHistoryPage> {
         documentType: widget.documentType,
         fromDate: HistoryDateFilter.toApiDate(_fromDate),
         toDate: HistoryDateFilter.toApiDate(_toDate),
+        paymentMethod:
+            widget.documentType == 'invoice' ? _selectedPaymentMethod : null,
       );
       final pendingEntries = await _loadPendingEntries(auth.salesmanCode);
       final merged = [
@@ -134,17 +137,19 @@ class _RepDocumentHistoryPageState extends State<RepDocumentHistoryPage> {
 
   List<Map<String, dynamic>> get _filteredEntries {
     final query = _searchController.text.trim().toLowerCase();
-    if (query.isEmpty) return _entries;
 
     return _entries.where((entry) {
-      final documentNo = entry['documentNo']?.toString().toLowerCase() ?? '';
-      final customerName =
-          entry['customerName']?.toString().toLowerCase() ?? '';
-      final customerCode =
-          entry['customerCode']?.toString().toLowerCase() ?? '';
-      return documentNo.contains(query) ||
-          customerName.contains(query) ||
-          customerCode.contains(query);
+      final matchesSearch = query.isEmpty ||
+          (entry['documentNo']?.toString().toLowerCase() ?? '').contains(query) ||
+          (entry['customerName']?.toString().toLowerCase() ?? '').contains(query) ||
+          (entry['customerCode']?.toString().toLowerCase() ?? '').contains(query);
+
+      final matchesPayment = widget.documentType != 'invoice' ||
+          _selectedPaymentMethod == 'All' ||
+          (entry['paymentMethod']?.toString().toLowerCase() ?? '')
+              .contains(_selectedPaymentMethod.toLowerCase());
+
+      return matchesSearch && matchesPayment;
     }).toList();
   }
 
@@ -294,6 +299,53 @@ class _RepDocumentHistoryPageState extends State<RepDocumentHistoryPage> {
     );
   }
 
+  Color _getPaymentBadgeColor(String method) {
+    final lower = method.toLowerCase();
+    if (lower.contains('cash')) return const Color(0xFF10B981);
+    if (lower.contains('cheque')) return const Color(0xFF3B82F6);
+    if (lower.contains('credit')) return const Color(0xFFF59E0B);
+    return widget.accentColor;
+  }
+
+  Widget _buildPaymentFilterChip(String label, IconData icon, [Color? activeColor]) {
+    final isSelected = _selectedPaymentMethod == label;
+    final chipColor = activeColor ?? widget.accentColor;
+    return FilterChip(
+      avatar: Icon(
+        icon,
+        size: 16,
+        color: isSelected ? Colors.white : chipColor,
+      ),
+      label: Text(
+        label,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+          color: isSelected ? Colors.white : Colors.black87,
+        ),
+      ),
+      selected: isSelected,
+      showCheckmark: false,
+      selectedColor: chipColor,
+      backgroundColor: chipColor.withValues(alpha: 0.08),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(
+          color: isSelected ? chipColor : chipColor.withValues(alpha: 0.25),
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      onSelected: (selected) {
+        if (selected) {
+          setState(() {
+            _selectedPaymentMethod = label;
+          });
+          _loadEntries();
+        }
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -391,6 +443,35 @@ class _RepDocumentHistoryPageState extends State<RepDocumentHistoryPage> {
                 ),
               ],
             ),
+            if (widget.documentType == 'invoice') ...[
+              const SizedBox(height: 12),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _buildPaymentFilterChip('All', Icons.filter_list_rounded),
+                    const SizedBox(width: 8),
+                    _buildPaymentFilterChip(
+                      'Cash',
+                      Icons.payments_rounded,
+                      const Color(0xFF10B981),
+                    ),
+                    const SizedBox(width: 8),
+                    _buildPaymentFilterChip(
+                      'Cheque',
+                      Icons.description_rounded,
+                      const Color(0xFF3B82F6),
+                    ),
+                    const SizedBox(width: 8),
+                    _buildPaymentFilterChip(
+                      'Credit',
+                      Icons.account_balance_rounded,
+                      const Color(0xFFF59E0B),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 12),
             TextField(
               controller: _searchController,
@@ -458,6 +539,33 @@ class _RepDocumentHistoryPageState extends State<RepDocumentHistoryPage> {
                                     ),
                                   ),
                                 ),
+                                if (widget.documentType == 'invoice' &&
+                                    entry['paymentMethod'] != null &&
+                                    entry['paymentMethod'].toString().trim().isNotEmpty) ...[
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    margin: const EdgeInsets.only(right: 6),
+                                    decoration: BoxDecoration(
+                                      color: _getPaymentBadgeColor(
+                                        entry['paymentMethod'].toString(),
+                                      ).withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      entry['paymentMethod'].toString(),
+                                      style: TextStyle(
+                                        color: _getPaymentBadgeColor(
+                                          entry['paymentMethod'].toString(),
+                                        ),
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                                 if (entry['isApproved'] == 1 ||
                                     entry['isApproved'] == true)
                                   Container(

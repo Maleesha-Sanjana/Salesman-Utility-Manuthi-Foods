@@ -80,6 +80,7 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
   // Track if current customer has saved data
   bool _hasSavedDataForCustomer = false;
   bool _isSyncingOfflineInvoices = false;
+  bool _isPostingInvoice = false;
   int _pendingInvoiceCount = 0;
   String? _activeTempDocNo;
   Timer? _draftPersistTimer;
@@ -5370,6 +5371,7 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
                                             primaryMethod,
                                           );
 
+                                          if (_isPostingInvoice) return;
                                           // Post invoice using stored procedure
                                           Navigator.of(
                                             context,
@@ -8636,6 +8638,12 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
     Map<String, dynamic>? paymentDetails, {
     List<Map<String, dynamic>>? customPaymentsList,
   }) async {
+    if (_isPostingInvoice) {
+      debugPrint('⚠️ [Invoice] Invoice posting already in progress. Ignoring duplicate trigger.');
+      return;
+    }
+    _isPostingInvoice = true;
+
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
     if (_rows.isEmpty) {
@@ -9021,7 +9029,7 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
         'address': _selectedCustomer!['address']?.toString(),
         'documentDate': documentDateStr,
         'manualNo': _manualController.text,
-        'reference': '',
+        'reference': tempDocNo,
         'paymentTerms': '',
         'remarks': _remarksController.text,
         'creditPeriod': 0,
@@ -9311,6 +9319,60 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
         );
       }
     } catch (e) {
+      // If error might be a network timeout while the server was actually processing:
+      final errStr = e.toString().toLowerCase();
+      if (offlinePostData != null &&
+          (errStr.contains('timeout') ||
+              errStr.contains('socket') ||
+              errStr.contains('connection'))) {
+        try {
+          final recentHistory = await ApiService.getRepDocumentHistory(
+            salesmanCode: salesmanCode,
+            documentType: 'invoice',
+            limit: 3,
+          );
+          final targetCustomer = _selectedCustomer?['code']?.toString().trim();
+          final targetAmount =
+              (offlinePostData['netAmount'] as num?)?.toDouble() ?? 0.0;
+          final matching = recentHistory.firstWhere(
+            (entry) =>
+                entry['customerCode']?.toString().trim() == targetCustomer &&
+                (((entry['netAmount'] as num?)?.toDouble() ?? 0.0) - targetAmount).abs() < 0.05,
+            orElse: () => {},
+          );
+          if (matching.isNotEmpty && matching['documentNo'] != null) {
+            final existingDocNo = matching['documentNo'].toString();
+            debugPrint(
+              '✅ Invoice was already committed on server ($existingDocNo). Skipping offline queue to prevent duplication.',
+            );
+            if (mounted) {
+              setState(() {
+                _rows.clear();
+                _selectedCustomer = null;
+                _saleLocationCode = null;
+                _stockLocationCode = null;
+                _clearRecalledQuotation();
+                _clearRecalledSalesOrder();
+                _invoiceDiscount = 0.0;
+                _remarksController.clear();
+                _manualController.clear();
+                _activeTempDocNo = null;
+              });
+              await _clearActiveDraft();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Invoice posted successfully: $existingDocNo'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            }
+            return;
+          }
+        } catch (_) {
+          // If checking fails, proceed to offline queue below
+        }
+      }
+
       if (offlineTempTransactions == null ||
           offlineTempPayments == null ||
           offlinePostData == null) {
@@ -9362,6 +9424,14 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
             ),
           ),
         );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isPostingInvoice = false;
+        });
+      } else {
+        _isPostingInvoice = false;
       }
     }
   }
