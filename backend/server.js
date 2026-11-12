@@ -6126,6 +6126,69 @@ app.post('/api/invoice/post', async (req, res) => {
     await transaction.begin(sql.ISOLATION_LEVEL.SERIALIZABLE);
 
     try {
+      // Deduplication check 1: Reference-based check (prevents duplicate when retrying same TempDocNo/LocalDocNo)
+      const cleanRef = (reference || '').toString().trim().substring(0, 30);
+      if (cleanRef.length > 0) {
+        const dupCheck = await new sql.Request(transaction)
+          .input('ref', sql.VarChar(30), cleanRef)
+          .input('salesman', sql.VarChar(20), salesmanCode)
+          .input('customer', sql.VarChar(20), customerCode)
+          .query(`
+            SELECT TOP 1 DocumentNo, NetAmount, Created_Date
+            FROM inv_invoiceheader WITH (NOLOCK)
+            WHERE Reference = @ref 
+              AND SalesmanCode = @salesman 
+              AND CustomerCode = @customer
+              AND StatusId = 1
+              AND Created_Date >= DATEADD(minute, -30, GETDATE())
+            ORDER BY Created_Date DESC
+          `);
+
+        if (dupCheck.recordset.length > 0) {
+          await transaction.rollback().catch(() => {});
+          const existingDocNo = dupCheck.recordset[0].DocumentNo;
+          console.log(`⚠️ [Deduplication] Invoice with Reference="${cleanRef}" already exists: ${existingDocNo}. Returning existing record instead of creating duplicate.`);
+          return res.json({
+            success: true,
+            message: 'Invoice already posted (duplicate prevented)',
+            documentNo: existingDocNo,
+            tempDocNo: tempDocNo,
+            isDuplicatePrevented: true
+          });
+        }
+      }
+
+      // Deduplication check 2: Rapid identical post check (same customer, salesman, netAmount within 45s)
+      if (netAmount && Number(netAmount) > 0) {
+        const rapidDupCheck = await new sql.Request(transaction)
+          .input('salesman', sql.VarChar(20), salesmanCode)
+          .input('customer', sql.VarChar(20), customerCode)
+          .input('netAmt', sql.Decimal(10, 3), Number(netAmount))
+          .query(`
+            SELECT TOP 1 DocumentNo, Created_Date
+            FROM inv_invoiceheader WITH (NOLOCK)
+            WHERE SalesmanCode = @salesman 
+              AND CustomerCode = @customer
+              AND NetAmount = @netAmt
+              AND StatusId = 1
+              AND DATEDIFF(SECOND, Created_Date, GETDATE()) BETWEEN 0 AND 45
+            ORDER BY Created_Date DESC
+          `);
+
+        if (rapidDupCheck.recordset.length > 0) {
+          await transaction.rollback().catch(() => {});
+          const existingDocNo = rapidDupCheck.recordset[0].DocumentNo;
+          console.log(`⚠️ [Deduplication] Rapid identical invoice detected for Customer=${customerCode}, Amount=${netAmount} within 45s: ${existingDocNo}. Returning existing record.`);
+          return res.json({
+            success: true,
+            message: 'Invoice already posted (duplicate prevented)',
+            documentNo: existingDocNo,
+            tempDocNo: tempDocNo,
+            isDuplicatePrevented: true
+          });
+        }
+      }
+
       // Search customer location in gen_customer and validate against gen_location
       if (customerCode) {
         const custLocMatch = await new sql.Request(transaction)
@@ -6820,6 +6883,7 @@ app.get('/api/rep-history/documents', async (req, res) => {
       .toLowerCase();
     const fromDateParam = (req.query.fromDate || req.query.from || '').toString().trim();
     const toDateParam = (req.query.toDate || req.query.to || '').toString().trim();
+    const paymentMethodParam = (req.query.paymentMethod || '').toString().trim();
     const limitParam = Number.parseInt((req.query.limit || '100').toString(), 10);
     const limit = Number.isFinite(limitParam)
       ? Math.min(Math.max(limitParam, 1), 500)
@@ -6873,6 +6937,18 @@ app.get('/api/rep-history/documents', async (req, res) => {
       dateFilter = 'AND CAST(h.DocumentDate AS DATE) <= @toDate';
     }
 
+    let paymentFilter = '';
+    if (iid === 'INV' && paymentMethodParam && paymentMethodParam.toLowerCase() !== 'all') {
+      const pm = paymentMethodParam.toLowerCase();
+      if (pm === 'cash') {
+        paymentFilter = `AND (EXISTS (SELECT 1 FROM inv_paymentdetails pd WHERE pd.RefDocNo = h.DocumentNo AND pd.PaymentCode = '001') OR (NOT EXISTS (SELECT 1 FROM inv_paymentdetails pd WHERE pd.RefDocNo = h.DocumentNo) AND ISNULL(h.BalanceAmount, 0) = 0))`;
+      } else if (pm === 'cheque') {
+        paymentFilter = `AND EXISTS (SELECT 1 FROM inv_paymentdetails pd WHERE pd.RefDocNo = h.DocumentNo AND pd.PaymentCode = '007')`;
+      } else if (pm === 'credit') {
+        paymentFilter = `AND (EXISTS (SELECT 1 FROM inv_paymentdetails pd WHERE pd.RefDocNo = h.DocumentNo AND pd.PaymentCode = '006') OR ISNULL(h.BalanceAmount, 0) > 0)`;
+      }
+    }
+
     const result = await request.query(`
       SELECT TOP (@limit)
         h.DocumentNo AS documentNo,
@@ -6889,13 +6965,29 @@ app.get('/api/rep-history/documents', async (req, res) => {
         END AS isPending,
         ISNULL(h.isApproved, 0) AS isApproved,
         ISNULL(h.isReject, 0) AS isReject,
-        h.rejReason AS rejReason
+        h.rejReason AS rejReason,
+        ISNULL(
+          STUFF((
+            SELECT DISTINCT ', ' + 
+              CASE 
+                WHEN pd.PaymentCode = '001' THEN 'Cash'
+                WHEN pd.PaymentCode = '007' THEN 'Cheque'
+                WHEN pd.PaymentCode = '006' THEN 'Credit'
+                ELSE ISNULL(pm.PaymentMode, pd.PaymentCode)
+              END
+            FROM inv_paymentdetails pd
+            LEFT JOIN gen_paymentmode pm ON pm.PaymentCode = pd.PaymentCode
+            WHERE pd.RefDocNo = h.DocumentNo
+            FOR XML PATH(''), TYPE).value('.', 'NVARCHAR(MAX)'), 1, 2, ''),
+          CASE WHEN ISNULL(h.BalanceAmount, 0) > 0 THEN 'Credit' ELSE 'Cash' END
+        ) AS paymentMethod
       FROM inv_invoiceheader h
       LEFT JOIN gen_customer c ON c.CustomerCode = h.CustomerCode
       WHERE h.Iid = @iid
         AND h.StatusId = 1
         AND LTRIM(RTRIM(ISNULL(h.SalesmanCode, ''))) = @salesmanCode
         ${dateFilter}
+        ${paymentFilter}
       ORDER BY h.DocumentDate DESC, h.DocumentNo DESC
     `);
 
@@ -7036,6 +7128,7 @@ app.get('/api/admin-history/documents', async (req, res) => {
     const fromDateParam = (req.query.fromDate || req.query.from || '').toString().trim();
     const toDateParam = (req.query.toDate || req.query.to || '').toString().trim();
     const searchQuery = (req.query.search || req.query.q || '').toString().trim();
+    const paymentMethodParam = (req.query.paymentMethod || '').toString().trim();
     const limitParam = Number.parseInt((req.query.limit || '5000').toString(), 10);
     const limit = Number.isFinite(limitParam)
       ? Math.min(Math.max(limitParam, 1), 10000)
@@ -7069,6 +7162,7 @@ app.get('/api/admin-history/documents', async (req, res) => {
       fromDateParam ? `from=${fromDateParam}` : null,
       toDateParam ? `to=${toDateParam}` : null,
       searchQuery ? `search="${searchQuery}"` : null,
+      paymentMethodParam ? `paymentMethod="${paymentMethodParam}"` : null,
     ].filter(Boolean);
 
     console.log(
@@ -7113,6 +7207,18 @@ app.get('/api/admin-history/documents', async (req, res) => {
         )`;
     }
 
+    let paymentFilter = '';
+    if (iid === 'INV' && paymentMethodParam && paymentMethodParam.toLowerCase() !== 'all') {
+      const pm = paymentMethodParam.toLowerCase();
+      if (pm === 'cash') {
+        paymentFilter = `AND (EXISTS (SELECT 1 FROM inv_paymentdetails pd WHERE pd.RefDocNo = h.DocumentNo AND pd.PaymentCode = '001') OR (NOT EXISTS (SELECT 1 FROM inv_paymentdetails pd WHERE pd.RefDocNo = h.DocumentNo) AND ISNULL(h.BalanceAmount, 0) = 0))`;
+      } else if (pm === 'cheque') {
+        paymentFilter = `AND EXISTS (SELECT 1 FROM inv_paymentdetails pd WHERE pd.RefDocNo = h.DocumentNo AND pd.PaymentCode = '007')`;
+      } else if (pm === 'credit') {
+        paymentFilter = `AND (EXISTS (SELECT 1 FROM inv_paymentdetails pd WHERE pd.RefDocNo = h.DocumentNo AND pd.PaymentCode = '006') OR ISNULL(h.BalanceAmount, 0) > 0)`;
+      }
+    }
+
     const baseFrom = `
       FROM inv_invoiceheader h
       LEFT JOIN gen_customer c ON c.CustomerCode = h.CustomerCode
@@ -7124,6 +7230,7 @@ app.get('/api/admin-history/documents', async (req, res) => {
         ${salesmanFilter}
         ${dateFilter}
         ${searchFilter}
+        ${paymentFilter}
     `;
 
     const summaryResult = await request.query(`
@@ -7158,7 +7265,22 @@ app.get('/api/admin-history/documents', async (req, res) => {
         ISNULL(h.Remarks, '') AS remarks,
         h.Iid AS documentType,
         LTRIM(RTRIM(ISNULL(h.SalesmanCode, ''))) AS salesmanCode,
-        ISNULL(s.SalesmanName, h.SalesmanCode) AS salesmanName
+        ISNULL(s.SalesmanName, h.SalesmanCode) AS salesmanName,
+        ISNULL(
+          STUFF((
+            SELECT DISTINCT ', ' + 
+              CASE 
+                WHEN pd.PaymentCode = '001' THEN 'Cash'
+                WHEN pd.PaymentCode = '007' THEN 'Cheque'
+                WHEN pd.PaymentCode = '006' THEN 'Credit'
+                ELSE ISNULL(pm.PaymentMode, pd.PaymentCode)
+              END
+            FROM inv_paymentdetails pd
+            LEFT JOIN gen_paymentmode pm ON pm.PaymentCode = pd.PaymentCode
+            WHERE pd.RefDocNo = h.DocumentNo
+            FOR XML PATH(''), TYPE).value('.', 'NVARCHAR(MAX)'), 1, 2, ''),
+          CASE WHEN ISNULL(h.BalanceAmount, 0) > 0 THEN 'Credit' ELSE 'Cash' END
+        ) AS paymentMethod
       ${baseFrom}
       ORDER BY ISNULL(s.SalesmanName, h.SalesmanCode), h.DocumentDate DESC, h.DocumentNo DESC
     `);

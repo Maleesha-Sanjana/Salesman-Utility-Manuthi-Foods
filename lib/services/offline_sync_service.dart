@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api_service.dart';
 import 'offline_auto_sync_service.dart';
+import '../utils/payment_utils.dart';
 
 class OfflineSyncService {
   static const String _pendingCustomersKey = 'offline_pending_customers';
@@ -90,6 +91,17 @@ class OfflineSyncService {
                 '-'
           : createdAt?.split('T').first ?? '-';
 
+      String paymentMethod = 'Cash';
+      final tempPayments = record['tempPayments'] as Map?;
+      final paymentsList = (tempPayments?['payments'] ?? postData['payments']) as List?;
+      if (paymentsList != null && paymentsList.isNotEmpty) {
+        final methods = paymentsList.map((p) {
+          final code = (p is Map ? p['paymentCode'] : null)?.toString() ?? '001';
+          return PaymentUtils.paymentCodeToLabel(code);
+        }).toSet().join(', ');
+        if (methods.isNotEmpty) paymentMethod = methods;
+      }
+
       entries.add({
         'documentNo':
             record['localDocNo']?.toString() ??
@@ -105,6 +117,7 @@ class OfflineSyncService {
         'netAmount': postData['netAmount'] ?? 0,
         'balanceAmount': postData['netAmount'] ?? 0,
         'remarks': postData['remarks']?.toString() ?? '',
+        'paymentMethod': paymentMethod,
         'isPendingSync': true,
         'lastError': record['lastError']?.toString(),
       });
@@ -438,6 +451,11 @@ class OfflineSyncService {
   }) async {
     final localDocNo = 'LINV${DateTime.now().millisecondsSinceEpoch}';
     final localTempDocNo = 'T$localDocNo';
+    final clientReference = postData['reference']?.toString().trim();
+    final effectiveReference =
+        (clientReference != null && clientReference.isNotEmpty)
+            ? clientReference
+            : localDocNo;
 
     await _appendRecord(_pendingInvoicesKey, {
       'localDocNo': localDocNo,
@@ -447,6 +465,7 @@ class OfflineSyncService {
         ...postData,
         'tempDocNo': localTempDocNo,
         'orgDocNo': localDocNo,
+        'reference': effectiveReference,
       },
       'createdAt': DateTime.now().toIso8601String(),
       'lastError': null,

@@ -57,6 +57,7 @@ class _AdminDocumentHistoryPageState extends State<AdminDocumentHistoryPage> {
   List<AdminDocumentHistoryGroup> _groups = [];
   List<Map<String, dynamic>> _entries = [];
   String _selectedSalesmanFilter = _kAllSalesmenFilter;
+  String _selectedPaymentMethod = 'All';
   DateTime? _fromDate;
   DateTime? _toDate;
   String? _busyDocumentNo;
@@ -195,6 +196,8 @@ class _AdminDocumentHistoryPageState extends State<AdminDocumentHistoryPage> {
         fromDate: HistoryDateFilter.toApiDate(_fromDate),
         toDate: HistoryDateFilter.toApiDate(_toDate),
         search: _searchController.text.trim(),
+        paymentMethod:
+            widget.documentType == 'invoice' ? _selectedPaymentMethod : null,
       );
 
       if (!mounted) return;
@@ -343,6 +346,45 @@ class _AdminDocumentHistoryPageState extends State<AdminDocumentHistoryPage> {
     );
   }
 
+  Widget _buildPaymentFilterChip(String label, IconData icon, [Color? activeColor]) {
+    final isSelected = _selectedPaymentMethod == label;
+    final chipColor = activeColor ?? widget.accentColor;
+    return FilterChip(
+      avatar: Icon(
+        icon,
+        size: 16,
+        color: isSelected ? Colors.white : chipColor,
+      ),
+      label: Text(
+        label,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+          color: isSelected ? Colors.white : Colors.black87,
+        ),
+      ),
+      selected: isSelected,
+      showCheckmark: false,
+      selectedColor: chipColor,
+      backgroundColor: chipColor.withValues(alpha: 0.08),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(
+          color: isSelected ? chipColor : chipColor.withValues(alpha: 0.25),
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      onSelected: (selected) {
+        if (selected) {
+          setState(() {
+            _selectedPaymentMethod = label;
+          });
+          _loadEntries();
+        }
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -395,6 +437,35 @@ class _AdminDocumentHistoryPageState extends State<AdminDocumentHistoryPage> {
                 _loadEntries();
               },
             ),
+            if (widget.documentType == 'invoice') ...[
+              const SizedBox(height: 12),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _buildPaymentFilterChip('All', Icons.filter_list_rounded),
+                    const SizedBox(width: 8),
+                    _buildPaymentFilterChip(
+                      'Cash',
+                      Icons.payments_rounded,
+                      const Color(0xFF10B981),
+                    ),
+                    const SizedBox(width: 8),
+                    _buildPaymentFilterChip(
+                      'Cheque',
+                      Icons.description_rounded,
+                      const Color(0xFF3B82F6),
+                    ),
+                    const SizedBox(width: 8),
+                    _buildPaymentFilterChip(
+                      'Credit',
+                      Icons.account_balance_rounded,
+                      const Color(0xFFF59E0B),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 12),
             InkWell(
               onTap: (_isLoading || _isLoadingSalesmen) ? null : _pickSalesman,
@@ -582,6 +653,7 @@ class _AdminDocumentHistoryPageState extends State<AdminDocumentHistoryPage> {
                           onPreviewPdf: () => _previewPdf(entry),
                           onPrintReceipt: () => _printReceipt(entry),
                           showSalesman: false,
+                          documentType: widget.documentType,
                         ),
                       ).toList(),
                     )
@@ -610,6 +682,7 @@ class _AdminDocumentHistoryPageState extends State<AdminDocumentHistoryPage> {
           onPreviewPdf: () => _previewPdf(entry),
           onPrintReceipt: () => _printReceipt(entry),
           showSalesman: true,
+          documentType: widget.documentType,
         );
       },
     );
@@ -721,6 +794,7 @@ class _DocumentRow extends StatelessWidget {
     required this.onPreviewPdf,
     required this.onPrintReceipt,
     required this.showSalesman,
+    required this.documentType,
   });
 
   final Map<String, dynamic> entry;
@@ -733,6 +807,15 @@ class _DocumentRow extends StatelessWidget {
   final VoidCallback onPreviewPdf;
   final VoidCallback onPrintReceipt;
   final bool showSalesman;
+  final String documentType;
+
+  Color _getPaymentBadgeColor(String method) {
+    final lower = method.toLowerCase();
+    if (lower.contains('cash')) return const Color(0xFF10B981);
+    if (lower.contains('cheque')) return const Color(0xFF3B82F6);
+    if (lower.contains('credit')) return const Color(0xFFF59E0B);
+    return accentColor;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -755,9 +838,42 @@ class _DocumentRow extends StatelessWidget {
         backgroundColor: accentColor.withValues(alpha: 0.12),
         child: Icon(icon, color: accentColor, size: 20),
       ),
-      title: Text(
-        documentNo,
-        style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+      title: Row(
+        children: [
+          Expanded(
+            child: Text(
+              documentNo,
+              style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+            ),
+          ),
+          if (documentType == 'invoice' &&
+              entry['paymentMethod'] != null &&
+              entry['paymentMethod'].toString().trim().isNotEmpty) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 6,
+                vertical: 2,
+              ),
+              margin: const EdgeInsets.only(right: 6),
+              decoration: BoxDecoration(
+                color: _getPaymentBadgeColor(
+                  entry['paymentMethod'].toString(),
+                ).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                entry['paymentMethod'].toString(),
+                style: TextStyle(
+                  color: _getPaymentBadgeColor(
+                    entry['paymentMethod'].toString(),
+                  ),
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
       subtitle: Text(
         showSalesman
@@ -892,7 +1008,6 @@ class _SalesmanPickerSheetState extends State<_SalesmanPickerSheet> {
     );
   }
 }
-
 
 class _EmptyState extends StatelessWidget {
   const _EmptyState({required this.message});

@@ -32,7 +32,7 @@ class ApiService {
   static const String _offlineProductsKey = 'offline_products_no_images';
   static const String _cachedCustomersKey = 'cached_customers_list';
   static const Duration _memoryCacheTtl = Duration(minutes: 10);
-  static const Duration _connectTimeout = Duration(seconds: 8);
+  static const Duration _connectTimeout = Duration(seconds: 30);
 
   static String _activeBaseUrl = primaryBaseUrl;
   static bool _hostProbeDone = false;
@@ -1991,6 +1991,7 @@ class ApiService {
         '/invoice/post',
         headers: {'Content-Type': 'application/json'},
         body: json.encode(payload),
+        timeout: const Duration(seconds: 60),
       );
 
       if (response.statusCode == 200) {
@@ -2026,6 +2027,7 @@ class ApiService {
         '/crn/post',
         headers: {'Content-Type': 'application/json'},
         body: json.encode(payload),
+        timeout: const Duration(seconds: 60),
       );
 
       if (response.statusCode == 200) {
@@ -2218,6 +2220,7 @@ class ApiService {
         '/sales-order/post',
         headers: {'Content-Type': 'application/json'},
         body: json.encode(postData),
+        timeout: const Duration(seconds: 60),
       );
 
       if (response.statusCode == 200) {
@@ -2260,6 +2263,7 @@ class ApiService {
         '/quotation/post',
         headers: {'Content-Type': 'application/json'},
         body: json.encode(postData),
+        timeout: const Duration(seconds: 60),
       );
 
       if (response.statusCode == 200) {
@@ -2299,6 +2303,7 @@ class ApiService {
     required String documentType,
     String? fromDate,
     String? toDate,
+    String? paymentMethod,
     int limit = 100,
   }) async {
     try {
@@ -2308,6 +2313,10 @@ class ApiService {
         'limit': limit.toString(),
         if (fromDate != null && fromDate.isNotEmpty) 'fromDate': fromDate,
         if (toDate != null && toDate.isNotEmpty) 'toDate': toDate,
+        if (paymentMethod != null &&
+            paymentMethod.isNotEmpty &&
+            paymentMethod.toLowerCase() != 'all')
+          'paymentMethod': paymentMethod,
       };
       final response = await _httpRequest((base) {
         final uri = Uri.parse(
@@ -2414,6 +2423,7 @@ class ApiService {
     String? fromDate,
     String? toDate,
     String? search,
+    String? paymentMethod,
     int limit = 5000,
   }) async {
     try {
@@ -2425,6 +2435,10 @@ class ApiService {
         if (fromDate != null && fromDate.isNotEmpty) 'fromDate': fromDate,
         if (toDate != null && toDate.isNotEmpty) 'toDate': toDate,
         if (search != null && search.isNotEmpty) 'search': search,
+        if (paymentMethod != null &&
+            paymentMethod.isNotEmpty &&
+            paymentMethod.toLowerCase() != 'all')
+          'paymentMethod': paymentMethod,
       };
       final response = await _httpRequest((base) {
         final uri = Uri.parse(
