@@ -5957,28 +5957,28 @@ app.post('/api/invoice/temp-payments', async (req, res) => {
             ledgerCode1: '1020040003',
             doubleEntery1: 'DR',
             ledgerCode2: '4010010001',
-            doubleEntery2: ''
+            doubleEntery2: 'CR'
           };
         case '007': // Cheque
           return {
             ledgerCode1: '1020040005',
             doubleEntery1: 'DR',
             ledgerCode2: '4010010001',
-            doubleEntery2: ''
+            doubleEntery2: 'CR'
           };
         case '006': // Credit
           return {
             ledgerCode1: '1020020001',
             doubleEntery1: 'DR',
             ledgerCode2: '4010010002',
-            doubleEntery2: ''
+            doubleEntery2: 'CR'
           };
         default:
           return {
             ledgerCode1: '1020040003',
             doubleEntery1: 'DR',
             ledgerCode2: '4010010001',
-            doubleEntery2: ''
+            doubleEntery2: 'CR'
           };
       }
     };
@@ -5990,7 +5990,7 @@ app.post('/api/invoice/temp-payments', async (req, res) => {
       const ledgerCode1 = payment.ledgerCode1 || defaultLedger.ledgerCode1;
       const doubleEntery1 = payment.doubleEntery1 || payment.doubleEntry1 || defaultLedger.doubleEntery1;
       const ledgerCode2 = payment.ledgerCode2 || defaultLedger.ledgerCode2;
-      const doubleEntery2 = payment.doubleEntery2 || payment.doubleEntry2 || '';
+      const doubleEntery2 = payment.doubleEntery2 || payment.doubleEntry2 || defaultLedger.doubleEntery2 || 'CR';
 
       await pool.request()
         .input('tempDocNo', sql.VarChar(20), tempDocNo)
@@ -6383,7 +6383,7 @@ app.post('/api/invoice/post', async (req, res) => {
     const finalLedgerCode1 = ledgerCode1 || '1020040003';
     const finalDoubleEntery1 = doubleEntery1 || 'DR';
     const finalLedgerCode2 = ledgerCode2 || '4010010001';
-    const finalDoubleEntery2 = doubleEntery2 || '';
+    const finalDoubleEntery2 = doubleEntery2 || 'CR';
 
     request.input('p_NetAmount', sql.Decimal(10, 3), netAmount || grossAmount || 0);
     request.input('p_LedgerCode1', sql.VarChar(15), finalLedgerCode1.substring(0, 15));

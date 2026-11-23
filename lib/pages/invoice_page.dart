@@ -8752,28 +8752,28 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
               'ledgerCode1': '1020040003',
               'doubleEntery1': 'DR',
               'ledgerCode2': '4010010001',
-              'doubleEntery2': '',
+              'doubleEntery2': 'CR',
             };
           case '007': // Cheque
             return {
               'ledgerCode1': '1020040005',
               'doubleEntery1': 'DR',
               'ledgerCode2': '4010010001',
-              'doubleEntery2': '',
+              'doubleEntery2': 'CR',
             };
           case '006': // Credit
             return {
               'ledgerCode1': '1020020001',
               'doubleEntery1': 'DR',
               'ledgerCode2': '4010010002',
-              'doubleEntery2': '',
+              'doubleEntery2': 'CR',
             };
           default:
             return {
               'ledgerCode1': '1020040003',
               'doubleEntery1': 'DR',
               'ledgerCode2': '4010010001',
-              'doubleEntery2': '',
+              'doubleEntery2': 'CR',
             };
         }
       }
@@ -8841,7 +8841,7 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
           'ledgerCode1': ledger['ledgerCode1'] ?? '',
           'doubleEntery1': ledger['doubleEntery1'] ?? 'DR',
           'ledgerCode2': ledger['ledgerCode2'] ?? '',
-          'doubleEntery2': '',
+          'doubleEntery2': ledger['doubleEntery2'] ?? 'CR',
         };
       }
 
@@ -9062,8 +9062,8 @@ class _InvoiceSimplePageState extends State<InvoiceSimplePage>
             ? (payments.first['ledgerCode2'] ?? '')
             : '',
         'doubleEntery2': payments.isNotEmpty
-            ? (payments.first['doubleEntery2'] ?? '')
-            : '',
+            ? (payments.first['doubleEntery2'] ?? 'CR')
+            : 'CR',
         'bankCode': payments
             .firstWhere(
               (p) =>
