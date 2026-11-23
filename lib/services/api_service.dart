@@ -23,7 +23,7 @@ class ApiService {
 
   /// Public / static IP — tried first.
   //static const String primaryBaseUrl =
-  // 'http://38.247.130.159:3000/api'; //Manuthi Foods
+  //'http://38.247.130.159:3000/api'; //Manuthi Foods
 
   /// LAN fallback — used when primary is unreachable.
   //static const String fallbackBaseUrl =
